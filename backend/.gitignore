@@ -1,5 +1,6 @@
 venv
 videos
 yolov8n.pt
+yolo12n.pt
 __pycache__
 videos2

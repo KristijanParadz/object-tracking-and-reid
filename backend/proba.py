@@ -94,7 +94,8 @@ def find_correspondences(detections_cam1, detections_cam2, F, threshold=5):
 
 
 # Load YOLO model
-yolo = YOLO('yolo12n.pt', verbose=False)
+yolo1 = YOLO('yolo12n.pt', verbose=False)
+yolo2 = YOLO('yolo12n.pt', verbose=False)
 
 # Video paths
 video_path1 = "videos/hd_00_00.mp4"
@@ -114,29 +115,25 @@ while cap1.isOpened() and cap2.isOpened():
         break
 
     frame_count += 1
-
-    # Process every 5th frame
     if frame_count % 5 != 0:
         continue
 
-    # Run YOLO on both frames
-    results1 = yolo.track(frame1, verbose=False)
-    results2 = yolo.track(frame2, verbose=False)
+    # Run YOLO tracking
+    results1 = yolo1.track(frame1, verbose=False)
+    results2 = yolo2.track(frame2, verbose=False)
 
-    # After YOLO detections:
-    # Format: ([x1,y1,x2,y2], class_id)
-    detections_cam1 = [(box.xyxy[0].tolist(), box.id)
+    # Get detections with tracking IDs
+    detections_cam1 = [(box.xyxy[0].tolist(), int(box.id.item()) if box.id is not None else -1)
                        for box in results1[0].boxes]
-    detections_cam2 = [(box.xyxy[0].tolist(), box.id)
+    detections_cam2 = [(box.xyxy[0].tolist(), int(box.id.item()) if box.id is not None else -1)
                        for box in results2[0].boxes]
 
-    # Extract center points (x_center, y_center)
+    # Extract centers and undistort
     detections_cam1_centers = [
-        ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) for box, _ in detections_cam1]
+        ((box[0]+box[2])/2, (box[1]+box[3])/2) for box, _ in detections_cam1]
     detections_cam2_centers = [
-        ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) for box, _ in detections_cam2]
+        ((box[0]+box[2])/2, (box[1]+box[3])/2) for box, _ in detections_cam2]
 
-    # Undistort points (if needed)
     detections_cam1_undistorted = undistort_points(
         detections_cam1_centers, K1, dist_coef1)
     detections_cam2_undistorted = undistort_points(
@@ -147,10 +144,36 @@ while cap1.isOpened() and cap2.isOpened():
     matches = find_correspondences(
         detections_cam1_undistorted, detections_cam2_undistorted, F)
 
-    # Print matches
-    for (idx1, idx2) in matches:
-        print(
-            f"Match: Cam1 Obj {detections_cam1[idx1][1]} <-> Cam2 Obj {detections_cam2[idx2][1]}")
+    # Assign random colors to matches
+    match_colors = {}
+    for idx1, idx2 in matches:
+        color = tuple(np.random.randint(
+            0, 255, 3).tolist())  # Random BGR color
+        match_colors[idx1] = color
+        match_colors[idx2 + 1000] = color  # Offset to avoid index collision
+
+    # Draw bounding boxes with matched colors
+    for i, (box, obj_id) in enumerate(detections_cam1):
+        x1, y1, x2, y2 = map(int, box)
+        color = match_colors.get(i, (0, 255, 0))  # Default green if no match
+        cv2.rectangle(frame1, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(frame1, f"ID:{obj_id}", (x1, y1-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+    for i, (box, obj_id) in enumerate(detections_cam2):
+        x1, y1, x2, y2 = map(int, box)
+        color = match_colors.get(i + 1000, (0, 255, 0))  # Offset index
+        cv2.rectangle(frame2, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(frame2, f"ID:{obj_id}", (x1, y1-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+    # Combine frames side-by-side
+    combined = np.hstack((frame1, frame2))
+    cv2.imshow("Multi-Camera Matching", combined)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
 
 cap1.release()
 cap2.release()

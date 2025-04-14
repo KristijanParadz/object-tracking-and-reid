@@ -3,12 +3,15 @@ import random
 from typing import Dict, Tuple
 from dataclasses import dataclass
 from frame_processing.config import Config
+from frame_processing.utils import Point
 
 Color = Tuple[int, int, int]
 
 ClassID = int
 
 ObjectID = int
+
+CameraId = str
 
 
 @dataclass
@@ -18,6 +21,7 @@ class GlobalTrackEntry:
     """
     embedding: np.ndarray
     color: Color
+    positions: Dict[CameraId, Point]
 
 
 class GlobalIDManager:
@@ -50,7 +54,7 @@ class GlobalIDManager:
             random.randint(0, 255)
         )
 
-    def match_or_create(self, embedding: np.ndarray, class_id: ClassID) -> ObjectID:
+    def match_or_create(self, embedding: np.ndarray, class_id: ClassID, camera_id: CameraId, bbox_center: Point) -> ObjectID:
         """
         Matches an embedding to an existing global ID or creates a new one if no match is found.
 
@@ -84,7 +88,7 @@ class GlobalIDManager:
         self.next_global_id += 1
 
         self.global_tracks[class_id][new_g_id] = GlobalTrackEntry(
-            embedding, color)
+            embedding, color, {camera_id: bbox_center})
         self.global_id_to_class[new_g_id] = class_id
 
         return new_g_id
@@ -133,8 +137,7 @@ class GlobalIDManager:
         norm = np.linalg.norm(blended)
         if norm > 0:
             blended /= norm
-        self.global_tracks[cls_id][global_id] = GlobalTrackEntry(
-            blended, track.color)
+        self.global_tracks[cls_id][global_id].embedding = blended
 
     def reset(self) -> None:
         """

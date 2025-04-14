@@ -10,6 +10,8 @@ from frame_processing.config import Config
 from frame_processing.re_id_model import ReIDModel
 from frame_processing.global_id_manager import GlobalIDManager, ObjectID, ClassID
 from dataclasses import dataclass
+from calibration.camera_calibration import CalibrationParameters
+from frame_processing.utils import Point
 
 
 @dataclass
@@ -33,7 +35,7 @@ class YOLOVideoTracker:
     A tracker that uses YOLO for object detection and a re-identification model for tracking objects in a video.
     """
 
-    def __init__(self, video_path: str, sio: socketio.AsyncServer, video_id: str, global_manager: GlobalIDManager, device: torch.device):
+    def __init__(self, video_path: str, sio: socketio.AsyncServer, video_id: str, global_manager: GlobalIDManager, device: torch.device, calibration_params: CalibrationParameters):
         """
         Initializes the YOLOVideoTracker.
 
@@ -55,6 +57,16 @@ class YOLOVideoTracker:
         self.last_local_ids: List[ObjectID] = []
         self.reid_model = ReIDModel(self.device)
         self.global_manager = global_manager
+        self.calibration_params = calibration_params
+
+    def undistort_point(self, point: Point) -> Point:
+        pts = np.array([[[point.x, point.y]]], dtype=np.float32)
+
+        undistorted_pts = cv2.undistortPoints(
+            pts, self.calibration_params.K, self.calibration_params.distCoef, P=self.calibration_params.K)
+
+        x, y = undistorted_pts[0, 0]
+        return Point(x=x, y=y)
 
     def _remove_local_duplicates(self) -> None:
         """
@@ -124,11 +136,14 @@ class YOLOVideoTracker:
 
             crop = frame[y1:y2, x1:x2]
 
+            bbox_center = Point((x1+x2)/2, (y1+y2)/2)
+            undistorted_bbox_center = self.undistort_point(bbox_center)
+
             # If track doesn't exist, create a new track and skip further processing.
             if local_id not in self.tracks:
                 embedding = self.reid_model.get_embedding(crop)
                 global_id = self.global_manager.match_or_create(
-                    embedding, class_id)
+                    embedding, class_id, self.video_id, undistorted_bbox_center)
                 self.tracks[local_id] = LocalTrackEntry(
                     class_id,
                     global_id,
@@ -138,6 +153,8 @@ class YOLOVideoTracker:
                 continue
 
             track_data = self.tracks[local_id]
+            self.global_manager.global_tracks[track_data.class_id][
+                track_data.global_id].positions[self.video_id] = undistorted_bbox_center
             # Skip updating the track if it's not time for an embedding update.
             if self.frame_counter - track_data.last_update_frame < Config.EMBEDDING_UPDATE_INTERVAL:
                 continue

@@ -6,6 +6,7 @@ from pathlib import Path
 from frame_processing.global_id_manager import GlobalIDManager
 from frame_processing.single_camera_tracker import YOLOVideoTracker
 from frame_processing.config import Config
+from calibration.camera_calibration import CameraCalibration, CalibrationParameters
 
 
 class MultiCameraProcessor:
@@ -20,16 +21,20 @@ class MultiCameraProcessor:
     def _init_trackers(self) -> None:
         """Initializes trackers for each video path."""
         self.trackers = []
+        camera_calibration = CameraCalibration("calibration/calibration.json")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         print(f"Using device: {device}")
         for video_path in self.video_paths:
             video_id = Path(video_path).stem
+            calib = camera_calibration.cameras[video_id]
             tracker = YOLOVideoTracker(
                 video_path=video_path,
                 sio=self.sio,
                 video_id=video_id,
                 global_manager=self.global_manager,
-                device=device
+                device=device,
+                calibration_params=CalibrationParameters(
+                    calib["K"], calib["distCoef"], calib["R"], calib["t"])
             )
             self.trackers.append(tracker)
 

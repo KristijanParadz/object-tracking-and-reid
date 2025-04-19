@@ -198,7 +198,7 @@ class YOLOVideoTracker:
             label = f"ID:{global_id}"
             if triangulated_point is not None:
                 [x, y, z] = triangulated_point
-                label = f"{label} X:{x:.2f} Y:{y:.2f} Z:{z:.2f}"
+                label = f"{label} X:{round(x)} Y:{round(y)} Z:{round(z)}"
 
             top_left = (int(bbox.x1 * scale), int(bbox.y1 * scale))
             bottom_right = (int(bbox.x2 * scale), int(bbox.y2 * scale))

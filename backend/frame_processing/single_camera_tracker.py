@@ -136,7 +136,8 @@ class YOLOVideoTracker:
 
             crop = frame[y1:y2, x1:x2]
 
-            bbox_center = Point((x1+x2)/2, (y1+y2)/2)
+            bbox_center = Point((x1 * Config.SCALE+x2 * Config.SCALE)/2,
+                                (y1 * Config.SCALE+y2 * Config.SCALE)/2)
             undistorted_bbox_center = self.undistort_point(bbox_center)
 
             # If track doesn't exist, create a new track and skip further processing.
@@ -168,7 +169,7 @@ class YOLOVideoTracker:
         self._remove_local_duplicates()
         return self.draw_last_boxes(frame, frame_for_frontend)
 
-    def draw_last_boxes(self, frame: np.ndarray, frame_for_frontend: np.ndarray | None):
+    def draw_last_boxes(self, frame: np.ndarray, frame_for_frontend: np.ndarray | None = None):
         """
         Draws bounding boxes and global IDs on the frame for the latest detections.
         All drawn elements are scaled by the provided scale factor.

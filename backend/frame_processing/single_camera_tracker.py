@@ -154,8 +154,8 @@ class YOLOVideoTracker:
                 continue
 
             track_data = self.tracks[local_id]
-            self.global_manager.global_tracks[track_data.class_id][
-                track_data.global_id].positions[self.video_id] = undistorted_bbox_center
+            self.global_manager.update_position(
+                track_data.global_id, self.video_id, undistorted_bbox_center)
             # Skip updating the track if it's not time for an embedding update.
             if self.frame_counter - track_data.last_update_frame < Config.EMBEDDING_UPDATE_INTERVAL:
                 continue
@@ -192,7 +192,13 @@ class YOLOVideoTracker:
             track_data = self.tracks[local_id]
             global_id = track_data.global_id
             color = self.global_manager.get_color(global_id)
+            triangulated_point = self.global_manager.get_triangulated_point(
+                global_id)
+
             label = f"ID:{global_id}"
+            if triangulated_point is not None:
+                [x, y, z] = triangulated_point
+                label = f"{label} X:{x:.2f} Y:{y:.2f} Z:{z:.2f}"
 
             top_left = (int(bbox.x1 * scale), int(bbox.y1 * scale))
             bottom_right = (int(bbox.x2 * scale), int(bbox.y2 * scale))

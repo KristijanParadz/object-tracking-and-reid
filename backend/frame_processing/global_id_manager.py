@@ -22,6 +22,7 @@ class GlobalTrackEntry:
     color: Color
     # Stores the *last known* position in each camera
     positions: Dict[CameraId, Point]
+    triangulated_point: np.ndarray | None = None
 
 
 class GlobalIDManager:
@@ -266,6 +267,22 @@ class GlobalIDManager:
                 f"Warning: GID {global_id} found in global_id_to_class but not in global_tracks.")
             return (255, 0, 0)  # Return a distinct color like red for errors
 
+    def get_triangulated_point(self, global_id: ObjectID) -> np.ndarray | None:
+        """Retrieves the color associated with a given global ID."""
+        if global_id not in self.global_id_to_class:
+            return None  # Default color if not found
+
+        cls_id: ClassID = self.global_id_to_class[global_id]
+        # Check existence carefully
+        if cls_id in self.global_tracks and global_id in self.global_tracks[cls_id]:
+            return self.global_tracks[cls_id][global_id].triangulated_point
+        else:
+            # This case might indicate an inconsistency if global_id_to_class has the ID
+            # but global_tracks doesn't. Log a warning?
+            print(
+                f"Warning: GID {global_id} found in global_id_to_class but not in global_tracks.")
+            return None  # Return a distinct color like red for errors
+
     def update_embedding(self, global_id: ObjectID, new_embedding: np.ndarray, alpha: Optional[float] = None) -> None:
         """
         Updates the embedding for a given global ID by blending.
@@ -290,6 +307,75 @@ class GlobalIDManager:
             blended /= norm  # Re-normalize
         self.global_tracks[cls_id][global_id].embedding = blended
 
+    def triangulate_multiview_svd(self, positions: Dict[str, Point]) -> np.ndarray:
+        """
+        Triangulate a 3D point from multiple camera views using the DLT method with SVD.
+
+        Args:
+            positions: Dict[CameraId, Point] - *Undistorted* 2D points from each camera.
+                                            It's crucial these points are already corrected
+                                            for lens distortion.
+
+        Returns:
+            point_3d: (3,) numpy array representing the triangulated [X, Y, Z] world coordinates.
+                    Returns None if triangulation fails or fewer than 2 views are available.
+        """
+        A = []  # Stores the rows for the linear system Ax = 0
+
+        calibrations = self.calibration_data
+        valid_views = 0
+        for cam_id, point in positions.items():
+            calib = calibrations[cam_id]
+            K = calib["K"]
+            R = calib["R"]
+            t = calib["t"]
+
+            # Construct projection matrix P = K [R | t]
+            P = K @ np.hstack([R, t])
+
+            # Get undistorted pixel coordinates
+            u, v = point.x, point.y
+
+            # Extract rows of P
+            p1T = P[0, :]
+            p2T = P[1, :]
+            p3T = P[2, :]
+
+            # Form the two linear equations for this view:
+            # (u * p3^T - p1^T) * X = 0
+            # (v * p3^T - p2^T) * X = 0
+            # where X = [Xw, Yw, Zw, 1]^T is the homogeneous world point
+            row1 = u * p3T - p1T
+            row2 = v * p3T - p2T
+            A.append(row1)
+            A.append(row2)
+            valid_views += 1
+
+        if valid_views < 2:
+            print(
+                f"Error: At least 2 valid camera views with calibrations are needed for triangulation. Found {valid_views}.")
+            # Or raise ValueError("At least 2 cameras are needed for triangulation.")
+            return None
+
+        # Stack the rows into the matrix A
+        A = np.vstack(A)  # Shape will be (2 * num_views, 4)
+
+        # Solve the homogeneous system Ax = 0 using SVD
+        # A = U * S * Vh (where Vh = V^T)
+        # The solution x is the last column of V, which is the last row of Vh
+        U, S, Vh = np.linalg.svd(A)
+        point_3d_homogeneous = Vh[-1, :]  # Last row of Vh (V transpose)
+
+        # Convert from homogeneous to Cartesian coordinates
+        if point_3d_homogeneous[3] == 0:
+            print(
+                "Warning: Triangulation resulted in point at infinity (homogeneous W=0).")
+            return None  # Or handle as appropriate
+
+        point_3d = point_3d_homogeneous[:3] / point_3d_homogeneous[3]
+
+        return point_3d
+
     # --- Add a method to update position explicitly if needed outside matching ---
     def update_position(self, global_id: ObjectID, camera_id: CameraId, bbox_center: Point) -> None:
         """ Explicitly updates the last known position for a global ID in a specific camera. """
@@ -301,6 +387,9 @@ class GlobalIDManager:
             return
 
         self.global_tracks[cls_id][global_id].positions[camera_id] = bbox_center
+        triangulated_point = self.triangulate_multiview_svd(
+            self.global_tracks[cls_id][global_id].positions)
+        self.global_tracks[cls_id][global_id].triangulated_point = triangulated_point
 
     def reset(self) -> None:
         """Resets the global tracking state."""

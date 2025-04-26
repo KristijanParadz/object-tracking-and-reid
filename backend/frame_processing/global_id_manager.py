@@ -218,9 +218,6 @@ class GlobalIDManager:
         # 3. Check spatial consistency for the best candidates
         matched_g_id: Optional[ObjectID] = None
         for sim, g_id in potential_matches:
-            if sim > 0.75:
-                matched_g_id = g_id
-                break
             track = self.global_tracks[class_id][g_id]
             # print(f"Checking GID {g_id} (Sim: {sim:.3f}) for spatial consistency...")
             if self._is_spatially_consistent(camera_id, bbox_center, track.positions):

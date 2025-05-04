@@ -2,6 +2,7 @@ import uvicorn
 import socketio
 import asyncio
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from frame_processing.multi_camera_processor import MultiCameraProcessor
 from frame_processing.config import Config
 from typing import List
@@ -12,6 +13,14 @@ import cv2
 # ----------------------------------------------------
 
 api_app = FastAPI()
+
+api_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080"],  # Your frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @api_app.get("/")

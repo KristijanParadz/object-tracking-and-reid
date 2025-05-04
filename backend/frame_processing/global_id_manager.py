@@ -148,40 +148,37 @@ class GlobalIDManager:
         dist = self.distance_point_to_line(pt2, line)
         return dist
 
-    def _is_spatially_consistent(self, current_cam: CameraId, current_pt: Point, track_positions: Dict[CameraId, Position], frame_number) -> bool:
+    def _calculate_lowest_distance(self, current_cam: CameraId, current_pt: Point, track_positions: Dict[CameraId, Position], frame_number) -> Optional[float]:
         """
         Checks if the current point is spatially consistent with any previous observations
         of the track in *other* cameras using epipolar geometry.
-        """
-        if not track_positions:  # No previous positions to compare with
-            return True  # Cannot perform check, assume consistent for now
 
-        is_consistent = False
-        # Check against positions from *other* cameras
+        Returns the minimum epipolar distance found under the threshold, or None if none are consistent.
+        """
+        if not track_positions:
+            return None  # No previous positions to compare with
+
+        # Check against positions from *other* cameras within recent frames
         other_camera_positions = {
-            cam: pos for cam, pos in track_positions.items() if cam != current_cam and frame_number - pos.last_frame_updated <= 10}
+            cam: pos for cam, pos in track_positions.items()
+            if cam != current_cam and frame_number - pos.last_frame_updated <= 10
+        }
 
         if not other_camera_positions:
-            # Only seen in the current camera before (or first time seen)
-            # Spatial check N/A for matching, rely on embedding.
-            # Or if the track exists but only in the current cam, the check is not applicable for matching purpose across cameras.
-            return True  # Cannot perform cross-camera check
+            return None  # No valid other-camera positions to compare with
+
+        min_distance = None
 
         for prev_cam_id, prev_pt in other_camera_positions.items():
-            # Check consistency: current detection vs previous detection in another camera
-            # F maps points from prev_cam to lines in current_cam
             F = self._get_fundamental_matrix(prev_cam_id, current_cam)
             if F is not None:
-                # Ensure points are in the correct format (assuming Point has x, y attributes)
                 distance = self._calculate_distance(
                     prev_pt.point, current_pt, F)
+                if distance < Config.EPIPOLAR_THRESHOLD:
+                    if min_distance is None or distance < min_distance:
+                        min_distance = distance
 
-                if distance < Config.EPIPOLAR_THRESHOLD:  # Compare distance squared
-                    is_consistent = True
-                    break  # Found one consistent view, that's enough
-
-        # print(f"  Overall Spatial Consistency for this track: {is_consistent}")
-        return is_consistent
+        return min_distance
 
     def _generate_random_color(self) -> Color:
         """Generates a random color represented as an RGB tuple."""
@@ -221,35 +218,32 @@ class GlobalIDManager:
         # 2. Sort candidates by similarity (highest first)
         potential_matches.sort(key=lambda x: x[0], reverse=True)
 
-        # 3. Check spatial consistency for the best candidates
-        matched_g_id: Optional[ObjectID] = None
+        # 3. Check spatial consistency and track best spatial match
+        best_match: Optional[Tuple[float, float, ObjectID]
+                             ] = None  # (distance, similarity, object_id)
+
         for sim, g_id in potential_matches:
             track = self.global_tracks[class_id][g_id]
-            # print(f"Checking GID {g_id} (Sim: {sim:.3f}) for spatial consistency...")
-            if self._is_spatially_consistent(camera_id, bbox_center, track.positions, frame_number):
-                # print(f"  --> Spatially Consistent! Matched GID: {g_id}")
-                matched_g_id = g_id
-                break  # Found the best match that is also spatially consistent
-            # else:
-                # print(f"  --> Spatially INconsistent.")
+            distance = self._calculate_lowest_distance(
+                camera_id, bbox_center, track.positions, frame_number)
+            if distance is not None:
+                if best_match is None or distance < best_match[0]:
+                    best_match = (distance, sim, g_id)
 
         # 4. Assign ID or create new one
-        if matched_g_id is not None:
-            # Update position for the matched track in the current camera
+        if best_match is not None:
+            _, _, matched_g_id = best_match
             self.global_tracks[class_id][matched_g_id].positions[camera_id] = Position(
                 bbox_center, frame_number)
-            # Optionally update embedding (if needed)
             self.update_embedding(matched_g_id, embedding)
             return matched_g_id
         else:
-            # No suitable match found (either low similarity or spatially inconsistent)
+            # No suitable match found
             color: Color = self._generate_random_color()
             new_g_id: ObjectID = self.next_global_id
             self.next_global_id += 1
 
-            # print(f"Creating new GID {new_g_id} for class {class_id} in camera {camera_id}")
             self.global_tracks[class_id][new_g_id] = GlobalTrackEntry(
-                # Initialize positions dict
                 embedding, color, {camera_id: Position(
                     bbox_center, frame_number)}
             )
@@ -359,8 +353,6 @@ class GlobalIDManager:
             valid_views += 1
 
         if valid_views < 2:
-            print(
-                f"Error: At least 2 valid camera views with calibrations are needed for triangulation. Found {valid_views}.")
             # Or raise ValueError("At least 2 cameras are needed for triangulation.")
             return None
 

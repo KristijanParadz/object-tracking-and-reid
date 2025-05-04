@@ -14,6 +14,12 @@ CalibrationData = Dict[str, Any]  # K, distCoef, R, t
 
 
 @dataclass
+class Position:
+    point: Point
+    last_frame_updated: int
+
+
+@dataclass
 class GlobalTrackEntry:
     """
     GlobalTrackEntry holds an embedding, color, and observed positions.
@@ -21,7 +27,7 @@ class GlobalTrackEntry:
     embedding: np.ndarray
     color: Color
     # Stores the *last known* position in each camera
-    positions: Dict[CameraId, Point]
+    positions: Dict[CameraId, Position]
     triangulated_point: np.ndarray | None = None
 
 
@@ -142,7 +148,7 @@ class GlobalIDManager:
         dist = self.distance_point_to_line(pt2, line)
         return dist
 
-    def _is_spatially_consistent(self, current_cam: CameraId, current_pt: Point, track_positions: Dict[CameraId, Point]) -> bool:
+    def _is_spatially_consistent(self, current_cam: CameraId, current_pt: Point, track_positions: Dict[CameraId, Position], frame_number) -> bool:
         """
         Checks if the current point is spatially consistent with any previous observations
         of the track in *other* cameras using epipolar geometry.
@@ -153,7 +159,7 @@ class GlobalIDManager:
         is_consistent = False
         # Check against positions from *other* cameras
         other_camera_positions = {
-            cam: pt for cam, pt in track_positions.items() if cam != current_cam}
+            cam: pos for cam, pos in track_positions.items() if cam != current_cam and frame_number - pos.last_frame_updated <= 10}
 
         if not other_camera_positions:
             # Only seen in the current camera before (or first time seen)
@@ -168,7 +174,7 @@ class GlobalIDManager:
             if F is not None:
                 # Ensure points are in the correct format (assuming Point has x, y attributes)
                 distance = self._calculate_distance(
-                    prev_pt, current_pt, F)
+                    prev_pt.point, current_pt, F)
 
                 if distance < Config.EPIPOLAR_THRESHOLD:  # Compare distance squared
                     is_consistent = True
@@ -181,7 +187,7 @@ class GlobalIDManager:
         """Generates a random color represented as an RGB tuple."""
         return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-    def match_or_create(self, embedding: np.ndarray, class_id: ClassID, camera_id: CameraId, bbox_center: Point) -> ObjectID:
+    def match_or_create(self, embedding: np.ndarray, class_id: ClassID, camera_id: CameraId, bbox_center: Point, frame_number: int) -> ObjectID:
         """
         Matches an embedding to an existing global ID using similarity and spatial constraints,
         or creates a new one if no suitable match is found.
@@ -220,7 +226,7 @@ class GlobalIDManager:
         for sim, g_id in potential_matches:
             track = self.global_tracks[class_id][g_id]
             # print(f"Checking GID {g_id} (Sim: {sim:.3f}) for spatial consistency...")
-            if self._is_spatially_consistent(camera_id, bbox_center, track.positions):
+            if self._is_spatially_consistent(camera_id, bbox_center, track.positions, frame_number):
                 # print(f"  --> Spatially Consistent! Matched GID: {g_id}")
                 matched_g_id = g_id
                 break  # Found the best match that is also spatially consistent
@@ -230,7 +236,8 @@ class GlobalIDManager:
         # 4. Assign ID or create new one
         if matched_g_id is not None:
             # Update position for the matched track in the current camera
-            self.global_tracks[class_id][matched_g_id].positions[camera_id] = bbox_center
+            self.global_tracks[class_id][matched_g_id].positions[camera_id] = Position(
+                bbox_center, frame_number)
             # Optionally update embedding (if needed)
             self.update_embedding(matched_g_id, embedding)
             return matched_g_id
@@ -243,7 +250,8 @@ class GlobalIDManager:
             # print(f"Creating new GID {new_g_id} for class {class_id} in camera {camera_id}")
             self.global_tracks[class_id][new_g_id] = GlobalTrackEntry(
                 # Initialize positions dict
-                embedding, color, {camera_id: bbox_center}
+                embedding, color, {camera_id: Position(
+                    bbox_center, frame_number)}
             )
             self.global_id_to_class[new_g_id] = class_id
             return new_g_id
@@ -304,7 +312,7 @@ class GlobalIDManager:
             blended /= norm  # Re-normalize
         self.global_tracks[cls_id][global_id].embedding = blended
 
-    def triangulate_multiview_svd(self, positions: Dict[str, Point]) -> np.ndarray:
+    def triangulate_multiview_svd(self, positions: Dict[CameraId, Position], current_frame_number: int) -> np.ndarray:
         """
         Triangulate a 3D point from multiple camera views using the DLT method with SVD.
 
@@ -321,7 +329,9 @@ class GlobalIDManager:
 
         calibrations = self.calibration_data
         valid_views = 0
-        for cam_id, point in positions.items():
+        for cam_id, position in positions.items():
+            if current_frame_number - position.last_frame_updated > 10:
+                continue
             calib = calibrations[cam_id]
             K = calib["K"]
             R = calib["R"]
@@ -331,7 +341,7 @@ class GlobalIDManager:
             P = K @ np.hstack([R, t])
 
             # Get undistorted pixel coordinates
-            u, v = point.x, point.y
+            u, v = position.point.x, position.point.y
 
             # Extract rows of P
             p1T = P[0, :]
@@ -374,7 +384,7 @@ class GlobalIDManager:
         return point_3d
 
     # --- Add a method to update position explicitly if needed outside matching ---
-    def update_position(self, global_id: ObjectID, camera_id: CameraId, bbox_center: Point) -> None:
+    def update_position(self, global_id: ObjectID, camera_id: CameraId, bbox_center: Point, frame_number: int) -> None:
         """ Explicitly updates the last known position for a global ID in a specific camera. """
         if global_id not in self.global_id_to_class:
             return
@@ -383,9 +393,10 @@ class GlobalIDManager:
         if cls_id not in self.global_tracks or global_id not in self.global_tracks[cls_id]:
             return
 
-        self.global_tracks[cls_id][global_id].positions[camera_id] = bbox_center
+        self.global_tracks[cls_id][global_id].positions[camera_id] = Position(
+            bbox_center, frame_number)
         triangulated_point = self.triangulate_multiview_svd(
-            self.global_tracks[cls_id][global_id].positions)
+            self.global_tracks[cls_id][global_id].positions, frame_number)
         self.global_tracks[cls_id][global_id].triangulated_point = triangulated_point
 
     def reset(self) -> None:

@@ -144,7 +144,7 @@ class YOLOVideoTracker:
             if local_id not in self.tracks:
                 embedding = self.reid_model.get_embedding(crop)
                 global_id = self.global_manager.match_or_create(
-                    embedding, class_id, self.video_id, undistorted_bbox_center)
+                    embedding, class_id, self.video_id, undistorted_bbox_center, self.frame_counter)
                 self.tracks[local_id] = LocalTrackEntry(
                     class_id,
                     global_id,
@@ -155,7 +155,7 @@ class YOLOVideoTracker:
 
             track_data = self.tracks[local_id]
             self.global_manager.update_position(
-                track_data.global_id, self.video_id, undistorted_bbox_center)
+                track_data.global_id, self.video_id, undistorted_bbox_center, self.frame_counter)
             # Skip updating the track if it's not time for an embedding update.
             if self.frame_counter - track_data.last_update_frame < Config.EMBEDDING_UPDATE_INTERVAL:
                 continue

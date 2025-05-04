@@ -9,11 +9,13 @@ import {
   faPlay,
   faRotateRight,
 } from "@fortawesome/free-solid-svg-icons";
+import axios from "axios";
 
 const images = computed(() => socketState.images);
 
 const isPaused = ref(false);
 const cameraStates = ref({});
+const cameras = ref([]);
 
 function ensureCameraState(key) {
   if (!cameraStates.value[key]) {
@@ -78,7 +80,25 @@ function onKeydownEsc(event) {
   }
 }
 
+async function fetchAvailableCameras() {
+  const response = await axios.get(
+    `${import.meta.env.VITE_API_BASE_URL}/api/available-cameras`
+  );
+  cameras.value = response.data.map((camIndex) => {
+    return {
+      index: camIndex,
+      name: `Camera ${camIndex}`,
+      isSelected: false,
+    };
+  });
+}
+
+function selectCamera(index) {
+  cameras.value[index].isSelected = !cameras.value[index].isSelected;
+}
+
 onMounted(() => {
+  fetchAvailableCameras();
   window.addEventListener("keydown", onKeydownEsc);
 });
 
@@ -90,9 +110,22 @@ onBeforeUnmount(() => {
 <template>
   <main>
     <img src="../assets/protostar-logo.png" alt="protostar-logo" />
+    <div class="available-cameras-container">
+      <span class="text-bold available-cameras-text">Available Cameras</span>
+      <div class="camera-list">
+        <div
+          v-for="(camera, index) in cameras"
+          :class="`available-camera ${camera.isSelected && 'selected'}`"
+          @click="() => selectCamera(index)"
+        >
+          {{ camera.name }}
+        </div>
+      </div>
+    </div>
+
     <div class="container">
       <div class="camera-container">
-        <span class="text-bold">Camera View</span>
+        <span class="text-bold">Broadcasts</span>
         <div
           v-if="images && Object.keys(images).length > 0"
           class="images-container"
@@ -185,6 +218,35 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.available-camera {
+  background: #003b3f;
+  border: 2px solid #0d6362;
+  color: #115c62;
+  border-radius: 8px;
+  padding: 0.7rem 2rem;
+  padding-bottom: 0.6rem;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.available-camera.selected {
+  background: #0098a3;
+  border: 2px solid #3bc7d6;
+  color: #08dee9;
+}
+.available-cameras-container {
+  margin-top: 2rem;
+}
+.available-cameras-text {
+  color: white;
+}
+
+.camera-list {
+  margin-top: 1rem;
+  display: flex;
+  gap: 1rem;
+}
+
 .images-container {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

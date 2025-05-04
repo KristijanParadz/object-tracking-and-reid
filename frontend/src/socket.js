@@ -13,7 +13,7 @@ export const socket = io(URL, {
 });
 
 socket.on("connect", () => {
-  socket.emit("start");
+  // socket.emit("start");
   state.connected = true;
 });
 

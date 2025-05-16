@@ -1,9 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import { state as socketState, socket } from "@/socket";
+import { ref, onMounted } from "vue";
 import axios from "axios";
-
-const images = computed(() => socketState.images);
 
 const cameras = ref([]);
 const selectedCamera = ref(null);

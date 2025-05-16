@@ -1,7 +1,7 @@
 import { reactive } from "vue";
 import { io } from "socket.io-client";
 
-export const state = reactive({
+export const processedImagesState = reactive({
   connected: false,
   images: {},
 });
@@ -13,13 +13,13 @@ export const socket = io(URL, {
 });
 
 socket.on("connect", () => {
-  state.connected = true;
+  processedImagesState.connected = true;
 });
 
 socket.on("disconnect", () => {
-  state.connected = false;
+  processedImagesState.connected = false;
 });
 
 socket.on("processed-images", (data) => {
-  state.images[data.video_id] = data.image;
+  processedImagesState.images[data.video_id] = data.image;
 });

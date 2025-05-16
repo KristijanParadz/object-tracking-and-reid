@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
-import { state as socketState, socket } from "@/socket";
+import { processedImagesState, socket } from "@/socket";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import {
   faCompress,
@@ -11,7 +11,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 
-const images = computed(() => socketState.images);
+const images = computed(() => processedImagesState.images);
 
 const isPaused = ref(false);
 const cameraStates = ref({});

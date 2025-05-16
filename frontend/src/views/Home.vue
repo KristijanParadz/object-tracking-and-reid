@@ -97,6 +97,13 @@ function selectCamera(index) {
   cameras.value[index].isSelected = !cameras.value[index].isSelected;
 }
 
+function startProcess() {
+  socket.emit(
+    "start",
+    cameras.value.filter((camera) => camera.isSelected)
+  );
+}
+
 onMounted(() => {
   fetchAvailableCameras();
   window.addEventListener("keydown", onKeydownEsc);
@@ -121,6 +128,7 @@ onBeforeUnmount(() => {
           {{ camera.name }}
         </div>
       </div>
+      <button @click="startProcess">Start</button>
     </div>
 
     <div class="container">

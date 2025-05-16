@@ -20,6 +20,6 @@ socket.on("disconnect", () => {
   state.connected = false;
 });
 
-socket.on("image", (data) => {
+socket.on("processed-images", (data) => {
   state.images[data.video_id] = data.image;
 });

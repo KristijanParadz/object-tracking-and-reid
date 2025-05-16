@@ -229,4 +229,4 @@ class YOLOVideoTracker:
         """
         _, buffer = cv2.imencode('.jpg', image)
         base64_jpg = base64.b64encode(buffer).decode('utf-8')
-        await self.sio.emit('image', {"video_id": self.video_id, "image": base64_jpg})
+        await self.sio.emit('processed-images', {"video_id": self.video_id, "image": base64_jpg})

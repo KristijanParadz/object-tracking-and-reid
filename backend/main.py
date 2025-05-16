@@ -86,19 +86,12 @@ async def disconnect(sid):
 
 @sio.event
 async def start(sid, data):
-    video_paths = [
-        'videos/hd_00_00.mp4',
-        # 'videos/hd_00_01.mp4',
-        # 'videos/hd_00_02.mp4',
-        'videos/hd_00_03.mp4'
-    ]
+    video_paths = [camera['index'] for camera in data]
 
     sio.multi_camera_tracker = MultiCameraProcessor(
         video_paths=video_paths,
         sio=sio
     )
-
-    print(data)
 
     # asyncio.create_task(sio.multi_camera_tracker.run())
 

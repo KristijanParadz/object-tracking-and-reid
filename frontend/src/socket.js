@@ -8,6 +8,7 @@ export const processedImagesState = reactive({
 export const intrinsicLiveFeedState = reactive({
   image: null,
   frameNumber: null,
+  framesSaved: null,
 });
 
 const URL = import.meta.env.VITE_API_BASE_URL;
@@ -31,4 +32,5 @@ socket.on("processed-images", (data) => {
 socket.on("live-feed-intrinsic", (data) => {
   intrinsicLiveFeedState.image = data.image;
   intrinsicLiveFeedState.frameNumber = data.frame_number;
+  intrinsicLiveFeedState.framesSaved = data.frames_saved;
 });

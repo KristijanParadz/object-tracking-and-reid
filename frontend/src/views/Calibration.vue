@@ -28,6 +28,12 @@ function startCalibration() {
   });
 }
 
+function captureImage() {
+  socket.emit("intrinsic-request-frame-save", {
+    frame_number: intrinsicLiveFeedState.frameNumber,
+  });
+}
+
 onMounted(() => {
   fetchAvailableCameras();
 });
@@ -63,10 +69,12 @@ onMounted(() => {
 
     <div class="container">
       <div class="camera-container">
-        <span class="text-bold">Live Feed</span>
+        <div class="image-title-container">
+          <span class="text-bold">Live Feed</span>
+          <span>{{ intrinsicLiveFeedState.framesSaved || 0 }} / 10</span>
+        </div>
 
         <div v-if="intrinsicLiveFeedState.image">
-          <h3>{{ key }}</h3>
           <div class="image-container">
             <img
               :src="`data:image/jpg;base64,${intrinsicLiveFeedState.image}`"
@@ -74,6 +82,7 @@ onMounted(() => {
               class="input-image"
             />
           </div>
+          <button @click="captureImage">Capture</button>
         </div>
 
         <div v-else class="image-container">
@@ -86,6 +95,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.image-title-container {
+  display: flex;
+  justify-content: space-between;
+}
 .int-ext-container {
   margin-top: 2rem;
   display: flex;

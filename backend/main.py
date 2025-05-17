@@ -145,7 +145,7 @@ def start_intrinsic_calibration(sid, data):
 
 
 @sio.on('intrinsic-request-frame-save')
-def handle_intrinsic_save_frame(data):
+def handle_intrinsic_save_frame(sid, data):
     Config.INTRINSIC_FRAME_NUMBER_TO_SAVE = data.get('frame_number')
     Config.INTRINSIC_FRAME_REQUESTED = True
 

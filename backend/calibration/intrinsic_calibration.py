@@ -10,12 +10,13 @@ from frame_processing.config import Config
 
 
 class IntrinsicCameraStreamer:
-    def __init__(self, sio, camera_index: int, output_dir='intrinsic_images'):
+    def __init__(self, sio, camera_index: int, output_dir='calibration/intrinsic_images'):
         self.sio = sio
         self.camera_index = camera_index
         self.output_dir = output_dir
         self.frame_buffer: Deque[Tuple[int, any]] = deque(maxlen=30)
         self.frame_counter = 0
+        self.frames_saved = 0
         self.running = False
         self.cap = None
 
@@ -26,6 +27,11 @@ class IntrinsicCameraStreamer:
         return base64.b64encode(buffer).decode('utf-8')
 
     async def start(self):
+        # Clear image output directory
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+            print(f"Cleared folder: {self.output_dir}")
+
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap.isOpened():
             print(f"Error: Cannot open camera index {self.camera_index}")
@@ -35,6 +41,9 @@ class IntrinsicCameraStreamer:
         os.makedirs(self.output_dir, exist_ok=True)
 
         while self.running:
+            if self.frames_saved == 10:
+                self.stop()
+
             ret, frame = self.cap.read()
             if not ret:
                 print("Warning: Failed to grab frame")
@@ -46,7 +55,8 @@ class IntrinsicCameraStreamer:
             if encoded:
                 await self.sio.emit('live-feed-intrinsic', {
                     'image': encoded,
-                    'frame_number': self.frame_counter
+                    'frame_number': self.frame_counter,
+                    'frames_saved': self.frames_saved
                 })
 
             if Config.INTRINSIC_FRAME_REQUESTED:
@@ -57,6 +67,7 @@ class IntrinsicCameraStreamer:
                     if frame_number == Config.INTRINSIC_FRAME_NUMBER_TO_SAVE:
                         save_path = f"{self.output_dir}/frame_{frame_number}.jpg"
                         cv2.imwrite(save_path, saved_frame)
+                        self.frames_saved += 1
                         print(f"Saved frame {frame_number} -> {save_path}")
                         found = True
                         break
@@ -65,6 +76,7 @@ class IntrinsicCameraStreamer:
                     fallback_fn, fallback_frame = self.frame_buffer[0]
                     save_path = f"{self.output_dir}/frame_{fallback_fn}.jpg"
                     cv2.imwrite(save_path, fallback_frame)
+                    self.frames_saved += 1
                     print(f"Warning: Requested frame {Config.INTRINSIC_FRAME_NUMBER_TO_SAVE} not in buffer. "
                           f"Saved fallback frame {fallback_fn} -> {save_path}")
 
@@ -82,8 +94,3 @@ class IntrinsicCameraStreamer:
         if self.cap and self.cap.isOpened():
             self.cap.release()
         self.frame_buffer.clear()
-
-        # Clear image output directory
-        if os.path.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
-            print(f"Cleared folder: {self.output_dir}")

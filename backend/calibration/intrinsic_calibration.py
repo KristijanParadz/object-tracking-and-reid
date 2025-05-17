@@ -1,0 +1,89 @@
+import cv2
+import base64
+import time
+import asyncio
+import os
+import shutil
+from collections import deque
+from typing import Deque, Tuple
+from frame_processing.config import Config
+
+
+class IntrinsicCameraStreamer:
+    def __init__(self, sio, camera_index: int, output_dir='intrinsic_images'):
+        self.sio = sio
+        self.camera_index = camera_index
+        self.output_dir = output_dir
+        self.frame_buffer: Deque[Tuple[int, any]] = deque(maxlen=30)
+        self.frame_counter = 0
+        self.running = False
+        self.cap = None
+
+    def encode_frame_to_base64(self, frame):
+        ret, buffer = cv2.imencode('.jpg', frame)
+        if not ret:
+            return None
+        return base64.b64encode(buffer).decode('utf-8')
+
+    async def start(self):
+        self.cap = cv2.VideoCapture(self.camera_index)
+        if not self.cap.isOpened():
+            print(f"Error: Cannot open camera index {self.camera_index}")
+            return
+
+        self.running = True
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        while self.running:
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Warning: Failed to grab frame")
+                continue
+
+            self.frame_buffer.append((self.frame_counter, frame.copy()))
+
+            encoded = self.encode_frame_to_base64(frame)
+            if encoded:
+                await self.sio.emit('live-feed-intrinsic', {
+                    'image': encoded,
+                    'frame_number': self.frame_counter
+                })
+
+            if Config.INTRINSIC_FRAME_REQUESTED:
+                Config.INTRINSIC_FRAME_REQUESTED = False
+
+                found = False
+                for frame_number, saved_frame in self.frame_buffer:
+                    if frame_number == Config.INTRINSIC_FRAME_NUMBER_TO_SAVE:
+                        save_path = f"{self.output_dir}/frame_{frame_number}.jpg"
+                        cv2.imwrite(save_path, saved_frame)
+                        print(f"Saved frame {frame_number} -> {save_path}")
+                        found = True
+                        break
+
+                if not found and self.frame_buffer:
+                    fallback_fn, fallback_frame = self.frame_buffer[0]
+                    save_path = f"{self.output_dir}/frame_{fallback_fn}.jpg"
+                    cv2.imwrite(save_path, fallback_frame)
+                    print(f"Warning: Requested frame {Config.INTRINSIC_FRAME_NUMBER_TO_SAVE} not in buffer. "
+                          f"Saved fallback frame {fallback_fn} -> {save_path}")
+
+            self.frame_counter += 1
+            await asyncio.sleep(0.05)  # Use asyncio sleep in async context
+
+        # Clean up after stopping
+        self._cleanup()
+
+    def stop(self):
+        """Call this from outside to stop the feed and clean everything up."""
+        self.running = False
+
+    def _cleanup(self):
+        if self.cap and self.cap.isOpened():
+            self.cap.release()
+        self.frame_buffer.clear()
+
+        # Clear image output directory
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+            print(f"Cleared folder: {self.output_dir}")

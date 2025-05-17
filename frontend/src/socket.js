@@ -2,8 +2,12 @@ import { reactive } from "vue";
 import { io } from "socket.io-client";
 
 export const processedImagesState = reactive({
-  connected: false,
   images: {},
+});
+
+export const intrinsicLiveFeedState = reactive({
+  image: null,
+  frameNumber: null,
 });
 
 const URL = import.meta.env.VITE_API_BASE_URL;
@@ -22,4 +26,9 @@ socket.on("disconnect", () => {
 
 socket.on("processed-images", (data) => {
   processedImagesState.images[data.video_id] = data.image;
+});
+
+socket.on("live-feed-intrinsic", (data) => {
+  intrinsicLiveFeedState.image = data.image;
+  intrinsicLiveFeedState.frameNumber = data.frame_number;
 });

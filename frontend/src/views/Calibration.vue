@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
+import { socket, intrinsicLiveFeedState } from "@/socket";
 import axios from "axios";
 
 const cameras = ref([]);
@@ -22,7 +23,9 @@ function selectCamera(index) {
 }
 
 function startCalibration() {
-  // TODO
+  socket.emit("start-intrinsic-calibration", {
+    camera_index: selectedCamera.value.index,
+  });
 }
 
 onMounted(() => {
@@ -60,20 +63,16 @@ onMounted(() => {
 
     <div class="container">
       <div class="camera-container">
-        <span class="text-bold">Broadcasts</span>
-        <div
-          v-if="images && Object.keys(images).length > 0"
-          class="images-container"
-        >
-          <div v-for="(value, key) in images" :key="key">
-            <h3>{{ key }}</h3>
-            <div class="image-container">
-              <img
-                :src="`data:image/jpg;base64,${value}`"
-                alt="input"
-                class="input-image"
-              />
-            </div>
+        <span class="text-bold">Live Feed</span>
+
+        <div v-if="intrinsicLiveFeedState.image">
+          <h3>{{ key }}</h3>
+          <div class="image-container">
+            <img
+              :src="`data:image/jpg;base64,${intrinsicLiveFeedState.image}`"
+              alt="input"
+              class="input-image"
+            />
           </div>
         </div>
 

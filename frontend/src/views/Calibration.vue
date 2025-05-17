@@ -52,6 +52,14 @@ function captureImage() {
   });
 }
 
+function restartProcess() {
+  imagesPreview.value = null;
+  intrinsicLiveFeedState.image = null;
+  intrinsicLiveFeedState.frameNumber = null;
+  intrinsicLiveFeedState.framesSaved = null;
+  isProcessRunning.value = false;
+}
+
 onMounted(() => {
   fetchAvailableCameras();
 });
@@ -105,6 +113,8 @@ onMounted(() => {
               class="input-image"
             />
           </div>
+          <button>Calibrate</button>
+          <button @click="restartProcess">Try again</button>
         </div>
 
         <div v-else-if="intrinsicLiveFeedState.image">

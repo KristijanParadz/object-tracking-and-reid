@@ -6,6 +6,7 @@ import axios from "axios";
 const cameras = ref([]);
 const selectedCamera = ref(null);
 const imagesPreview = ref(null);
+const isProcessRunning = ref(false);
 
 async function fetchAvailableCameras() {
   const response = await axios.get(
@@ -34,10 +35,12 @@ async function getCapturedImagesPreview() {
 }
 
 function selectCamera(index) {
+  if (isProcessRunning.value) return;
   selectedCamera.value = cameras.value.find((camera) => camera.index === index);
 }
 
 function startCalibration() {
+  isProcessRunning.value = true;
   socket.emit("start-intrinsic-calibration", {
     camera_index: selectedCamera.value.index,
   });
@@ -77,7 +80,10 @@ onMounted(() => {
         </div>
       </div>
 
-      <button @click="startCalibration" :disabled="selectedCamera == null">
+      <button
+        @click="startCalibration"
+        :disabled="selectedCamera == null || isProcessRunning"
+      >
         Start Calibration
       </button>
     </div>

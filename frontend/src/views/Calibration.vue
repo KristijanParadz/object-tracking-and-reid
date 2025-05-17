@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { socket, intrinsicLiveFeedState } from "@/socket";
 import axios from "axios";
 
 const cameras = ref([]);
 const selectedCamera = ref(null);
+const imagesPreview = ref(null);
 
 async function fetchAvailableCameras() {
   const response = await axios.get(
@@ -16,6 +17,20 @@ async function fetchAvailableCameras() {
       name: `Camera ${camIndex}`,
     };
   });
+}
+
+watch(
+  () => intrinsicLiveFeedState.framesSaved,
+  () => {
+    if (intrinsicLiveFeedState.framesSaved === 10) getCapturedImagesPreview();
+  }
+);
+
+async function getCapturedImagesPreview() {
+  const response = await axios.get(
+    `${import.meta.env.VITE_API_BASE_URL}/api/intrinsic-images-preview`
+  );
+  imagesPreview.value = response.data;
 }
 
 function selectCamera(index) {
@@ -70,11 +85,25 @@ onMounted(() => {
     <div class="container">
       <div class="camera-container">
         <div class="image-title-container">
-          <span class="text-bold">Live Feed</span>
+          <span class="text-bold">{{
+            imagesPreview ? "Preview" : "Live Feed"
+          }}</span>
           <span>{{ intrinsicLiveFeedState.framesSaved || 0 }} / 10</span>
         </div>
 
-        <div v-if="intrinsicLiveFeedState.image">
+        <div v-if="imagesPreview" class="images-container">
+          <div v-for="image in imagesPreview">
+            <div class="image-container">
+              <img
+                :src="`data:image/jpg;base64,${image}`"
+                alt="input"
+                class="input-image"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="intrinsicLiveFeedState.image">
           <div class="image-container">
             <img
               :src="`data:image/jpg;base64,${intrinsicLiveFeedState.image}`"
@@ -185,5 +214,28 @@ onMounted(() => {
   height: 100%;
   border-radius: 5px;
   object-fit: cover;
+}
+
+@media (max-width: 1350px) {
+  .images-container {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}
+
+@media (max-width: 1150px) {
+  .container {
+    gap: 5rem;
+  }
+}
+
+@media (max-width: 965px) {
+  .container {
+    align-items: center;
+    flex-direction: column;
+    gap: 3rem;
+  }
+  .text-bold {
+    text-align: center;
+  }
 }
 </style>

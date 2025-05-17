@@ -1,12 +1,13 @@
 import cv2
 import base64
-import time
+import glob
 import asyncio
 import os
 import shutil
 from collections import deque
 from typing import Deque, Tuple
 from frame_processing.config import Config
+import re
 
 
 class IntrinsicCameraStreamer:
@@ -94,3 +95,32 @@ class IntrinsicCameraStreamer:
         if self.cap and self.cap.isOpened():
             self.cap.release()
         self.frame_buffer.clear()
+
+    def get_saved_images_base64(self):
+        """
+        Returns a list of base64-encoded strings of all images in self.output_dir,
+        sorted by the frame number in the filename.
+        """
+        base64_images = []
+        if not os.path.exists(self.output_dir):
+            print(f"Directory {self.output_dir} does not exist.")
+            return base64_images
+
+        def extract_frame_number(path):
+            match = re.search(r'frame_(\d+)\.jpg', os.path.basename(path))
+            return int(match.group(1)) if match else -1
+
+        image_paths = sorted(
+            glob.glob(os.path.join(self.output_dir, '*.jpg')),
+            key=extract_frame_number
+        )
+
+        for img_path in image_paths:
+            try:
+                with open(img_path, 'rb') as image_file:
+                    encoded = base64.b64encode(
+                        image_file.read()).decode('utf-8')
+                    base64_images.append(encoded)
+            except Exception as e:
+                print(f"Failed to encode image {img_path}: {e}")
+        return base64_images

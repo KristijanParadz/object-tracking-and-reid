@@ -44,10 +44,14 @@ def available_cameras():
     return get_available_cameras()
 
 
+@api_app.get("/intrinsic-images-preview")
+def get_intrinsic_images():
+    return sio.intrinsic_camera_streamer.get_saved_images_base64()
+
+
 # ----------------------------------------------------
 # Socket.IO setup
 # ----------------------------------------------------
-
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins=["http://localhost:8080"]

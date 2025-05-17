@@ -92,14 +92,12 @@ onMounted(() => {
         </div>
 
         <div v-if="imagesPreview" class="images-container">
-          <div v-for="image in imagesPreview">
-            <div class="image-container">
-              <img
-                :src="`data:image/jpg;base64,${image}`"
-                alt="input"
-                class="input-image"
-              />
-            </div>
+          <div v-for="image in imagesPreview" class="image-container">
+            <img
+              :src="`data:image/jpg;base64,${image}`"
+              alt="input"
+              class="input-image"
+            />
           </div>
         </div>
 

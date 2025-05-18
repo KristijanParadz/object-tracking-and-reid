@@ -49,6 +49,11 @@ def get_intrinsic_images():
     return sio.intrinsic_camera_streamer.get_saved_images_base64()
 
 
+@api_app.get("/intrinsic-camera-calibration")
+def get_intrinsic_images():
+    return sio.intrinsic_camera_streamer.calibrate_intrinsic_from_folder()
+
+
 # ----------------------------------------------------
 # Socket.IO setup
 # ----------------------------------------------------

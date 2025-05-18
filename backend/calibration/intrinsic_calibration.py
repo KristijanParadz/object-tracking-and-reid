@@ -8,6 +8,7 @@ from collections import deque
 from typing import Deque, Tuple
 from frame_processing.config import Config
 import re
+import numpy as np
 
 
 class IntrinsicCameraStreamer:
@@ -124,3 +125,69 @@ class IntrinsicCameraStreamer:
             except Exception as e:
                 print(f"Failed to encode image {img_path}: {e}")
         return base64_images
+
+    def calibrate_intrinsic_from_folder(self, pattern_size=(9, 6), square_size=1.0):
+        """
+        Performs intrinsic camera calibration from chessboard images in a folder.
+
+        Args:
+            image_dir (str): Path to the folder containing calibration images.
+            pattern_size (tuple): Number of inner corners per chessboard row and column (cols, rows).
+            square_size (float): Size of a square on the chessboard (in user-defined units, e.g., mm).
+
+        Returns:
+            dict: Calibration results containing camera matrix, distortion coefficients, etc.
+        """
+        # Termination criteria for sub-pixel refinement
+        criteria = (cv2.TERM_CRITERIA_EPS +
+                    cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+        # Prepare object points like (0,0,0), (1,0,0), ..., (8,5,0) multiplied by square size
+        objp = np.zeros((pattern_size[1] * pattern_size[0], 3), np.float32)
+        objp[:, :2] = np.mgrid[0:pattern_size[0],
+                               0:pattern_size[1]].T.reshape(-1, 2)
+        objp *= square_size
+
+        objpoints = []  # 3D points in real-world space
+        imgpoints = []  # 2D points in image plane
+
+        test_output_dir = "calibration/example_images"
+
+        images = sorted(glob.glob(os.path.join(test_output_dir, '*.jpg')))
+        if not images:
+            raise FileNotFoundError(
+                f"No images found in directory: {test_output_dir}")
+
+        image_shape = None
+        for fname in images:
+            img = cv2.imread(fname)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # Save image size for calibration
+            if image_shape is None:
+                image_shape = gray.shape[::-1]
+
+            # Find the chessboard corners
+            ret, corners = cv2.findChessboardCorners(gray, pattern_size, None)
+
+            if ret:
+                objpoints.append(objp)
+                corners2 = cv2.cornerSubPix(
+                    gray, corners, (11, 11), (-1, -1), criteria)
+                imgpoints.append(corners2)
+            else:
+                print(f"Warning: Chessboard not found in {fname}")
+
+        if not objpoints or not imgpoints:
+            raise RuntimeError(
+                "No valid chessboard corners found in any image.")
+
+        # Calibrate camera
+        ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+            objpoints, imgpoints, image_shape, None, None
+        )
+
+        return {
+            "K": camera_matrix.tolist(),
+            "distCoef": dist_coeffs.tolist()[0],
+        }

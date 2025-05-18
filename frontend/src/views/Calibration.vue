@@ -46,6 +46,46 @@ function startCalibration() {
   });
 }
 
+async function calibrateCamera() {
+  const response = await axios.get(
+    `${import.meta.env.VITE_API_BASE_URL}/api/intrinsic-camera-calibration`
+  );
+  const data = response.data;
+
+  // Retrieve and parse existing calibration data from localStorage
+  let calibrationList =
+    JSON.parse(localStorage.getItem("calibrationData")) || [];
+
+  // Ensure it's an array
+  if (!Array.isArray(calibrationList)) {
+    calibrationList = [];
+  }
+
+  // Find index of existing calibration entry
+  const existingIndex = calibrationList.findIndex(
+    (item) => item.index === selectedCamera.index
+  );
+
+  if (existingIndex !== -1) {
+    // Update existing entry
+    calibrationList[existingIndex].K = data.K;
+    calibrationList[existingIndex].distCoef = data.distCoef;
+  } else {
+    // Create new entry
+    calibrationList.push({
+      index: selectedCamera.index,
+      K: data.K,
+      distCoef: data.distCoef,
+    });
+  }
+
+  // Sort list by index
+  calibrationList.sort((a, b) => a.index - b.index);
+
+  // Store back into localStorage
+  localStorage.setItem("calibrationData", JSON.stringify(calibrationList));
+}
+
 function captureImage() {
   socket.emit("intrinsic-request-frame-save", {
     frame_number: intrinsicLiveFeedState.frameNumber,
@@ -113,7 +153,7 @@ onMounted(() => {
               class="input-image"
             />
           </div>
-          <button>Calibrate</button>
+          <button @click="calibrateCamera">Calibrate</button>
           <button @click="restartProcess">Try again</button>
         </div>
 

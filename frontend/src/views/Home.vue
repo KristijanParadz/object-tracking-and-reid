@@ -109,10 +109,10 @@ function selectCamera(index) {
 }
 
 function startProcess() {
-  socket.emit(
-    "start",
-    cameras.value.filter((camera) => camera.isSelected)
-  );
+  socket.emit("start", {
+    cameras: cameras.value.filter((camera) => camera.isSelected),
+    calibrationData: JSON.parse(localStorage.getItem("calibrationData")),
+  });
 }
 
 onMounted(() => {

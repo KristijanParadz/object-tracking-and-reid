@@ -35,12 +35,12 @@ class YOLOVideoTracker:
     A tracker that uses YOLO for object detection and a re-identification model for tracking objects in a video.
     """
 
-    def __init__(self, video_path: str, sio: socketio.AsyncServer, video_id: str, global_manager: GlobalIDManager, device: torch.device, calibration_params: CalibrationParameters):
+    def __init__(self, camera_index: str, sio: socketio.AsyncServer, video_id: str, global_manager: GlobalIDManager, device: torch.device, calibration_params: CalibrationParameters):
         """
         Initializes the YOLOVideoTracker.
 
         Args:
-            video_path (str): Path to the input video.
+            camera_index (str): Path to the input video.
             sio(socketio.AsyncServer): SocketIO instance for emitting events.
             video_id (str): Identifier for the video.
             global_manager(GlobalIDManager): Manager for global tracking across frames.
@@ -50,7 +50,7 @@ class YOLOVideoTracker:
         self.video_id = video_id
         self.device = device
         self.model = YOLO(Config.YOLO_MODEL_PATH).to(self.device)
-        self.cap = cv2.VideoCapture(video_path)
+        self.cap = cv2.VideoCapture(camera_index)
         self.frame_counter = -1
         self.tracks: Dict[ObjectID, LocalTrackEntry] = {}
         self.last_bounding_boxes: List[BoundingBox] = []

@@ -10,33 +10,38 @@ from calibration.camera_calibration import CameraCalibration, CalibrationParamet
 
 
 class MultiCameraProcessor:
-    def __init__(self, video_paths: list[str], sio: socketio.AsyncServer) -> None:
-        self.video_paths = video_paths
+    def __init__(self, camera_indexes: list[str], sio: socketio.AsyncServer, calibration_data) -> None:
+        self.camera_indexes = camera_indexes
         self.sio = sio
         self.paused = False
         self.stopped = False
-        self.global_manager = GlobalIDManager()
+        self.global_manager = GlobalIDManager(calibration_data)
+        self.calibration_data = calibration_data
         self._init_trackers()
 
     def _init_trackers(self) -> None:
         """Initializes trackers for each video path."""
         self.trackers = []
-        camera_calibration = CameraCalibration("calibration/calibration.json")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         print(f"Using device: {device}")
-        for video_path in self.video_paths:
-            video_id = Path(video_path).stem
-            calib = camera_calibration.cameras[video_id]
+        for camera_index in self.camera_indexes:
+            calib = self.find_camera_by_index(camera_index)
             tracker = YOLOVideoTracker(
-                video_path=video_path,
+                camera_index=camera_index,
                 sio=self.sio,
-                video_id=video_id,
+                video_id=f"Camera {camera_index}",
                 global_manager=self.global_manager,
                 device=device,
                 calibration_params=CalibrationParameters(
                     calib["K"], calib["distCoef"], calib["R"], calib["t"])
             )
             self.trackers.append(tracker)
+
+    def find_camera_by_index(self, index):
+        for camera in self.calibration_data:
+            if camera.get("index") == index:
+                return camera
+        return None
 
     async def _process_tracker(self, tracker: YOLOVideoTracker) -> bool:
         """

@@ -44,7 +44,7 @@ class GlobalIDManager:
         fundamental_matrices (Dict[Tuple[CameraId, CameraId], np.ndarray]): Cache for F matrices.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, calibration_data) -> None:
         """
         Initializes the GlobalIDManager.
 
@@ -57,8 +57,8 @@ class GlobalIDManager:
                                  Dict[ObjectID, GlobalTrackEntry]] = {}
         self.global_id_to_class: Dict[ObjectID, ClassID] = {}
         self.next_global_id: ObjectID = 1
-        self.calibration_data = self._validate_calibration(
-            CameraCalibration("calibration/calibration.json").cameras)
+        calib = CameraCalibration(calibration_data)
+        self.calibration_data = calib.validate_calibration(calib.cameras)
         self.fundamental_matrices: Dict[Tuple[CameraId,
                                               CameraId], Optional[np.ndarray]] = {}
 
@@ -70,27 +70,6 @@ class GlobalIDManager:
 
     def distance_point_to_line(self, point: Point, line: np.ndarray):
         return abs(line[0] * point.x + line[1] * point.y + line[2])
-
-    def _validate_calibration(self, calib_data: Dict[CameraId, CalibrationData]) -> Dict[CameraId, CalibrationData]:
-        """Ensures calibration data has numpy arrays."""
-        validated_data = {}
-        for cam_id, data in calib_data.items():
-            try:
-                validated_data[cam_id] = {
-                    "K": np.array(data["K"], dtype=float),
-                    "distCoef": np.array(data["distCoef"], dtype=float),
-                    "R": np.array(data["R"], dtype=float),
-                    # Ensure t is 3x1
-                    "t": np.array(data["t"], dtype=float).reshape(3, 1)
-                }
-                # Basic shape checks
-                assert validated_data[cam_id]["K"].shape == (3, 3)
-                assert validated_data[cam_id]["R"].shape == (3, 3)
-                assert validated_data[cam_id]["t"].shape == (3, 1)
-            except (KeyError, TypeError, AssertionError) as e:
-                raise ValueError(
-                    f"Invalid calibration data format for camera {cam_id}: {e}")
-        return validated_data
 
     def _get_fundamental_matrix(self, cam1_id: CameraId, cam2_id: CameraId) -> Optional[np.ndarray]:
         """

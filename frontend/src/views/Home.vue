@@ -10,6 +10,10 @@ import {
   faRotateRight,
 } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
+import {
+  checkIfCameraHasExtrinsics,
+  checkIfCameraHasIntrinsics,
+} from "../utils/calibration";
 
 const images = computed(() => processedImagesState.images);
 
@@ -84,7 +88,14 @@ async function fetchAvailableCameras() {
   const response = await axios.get(
     `${import.meta.env.VITE_API_BASE_URL}/api/available-cameras`
   );
-  cameras.value = response.data.map((camIndex) => {
+
+  const camerasThatAreCalibrated = response.data.filter(
+    (camIndex) =>
+      checkIfCameraHasIntrinsics(camIndex) &&
+      checkIfCameraHasExtrinsics(camIndex)
+  );
+
+  cameras.value = camerasThatAreCalibrated.map((camIndex) => {
     return {
       index: camIndex,
       name: `Camera ${camIndex}`,
@@ -119,7 +130,7 @@ onBeforeUnmount(() => {
     <img src="../assets/protostar-logo.png" alt="protostar-logo" />
     <div class="available-cameras-container">
       <span class="text-bold available-cameras-text">Available Cameras</span>
-      <div class="camera-list">
+      <div v-if="cameras.length > 0" class="camera-list">
         <div
           v-for="(camera, index) in cameras"
           :class="`available-camera ${camera.isSelected && 'selected'}`"
@@ -127,6 +138,12 @@ onBeforeUnmount(() => {
         >
           {{ camera.name }}
         </div>
+      </div>
+
+      <div v-else class="no-cameras-text">
+        No calibrated cameras found. Please visit the Camera Calibration page to
+        calibrate your cameras.<br />Once calibration is complete, the cameras
+        will appear here.
       </div>
       <button @click="startProcess">Start</button>
       <router-link to="/extrinsic">Camera Calibration</router-link>
@@ -227,6 +244,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.no-cameras-text {
+  margin: 1.5rem 0;
+  color: white;
+}
 .available-camera {
   background: #003b3f;
   border: 2px solid #0d6362;

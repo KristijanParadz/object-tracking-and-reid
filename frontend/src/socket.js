@@ -11,6 +11,12 @@ export const intrinsicLiveFeedState = reactive({
   framesSaved: null,
 });
 
+export const extrinsicLiveFeedState = reactive({
+  images: {},
+  frameNumber: null,
+  framesSaved: null,
+});
+
 const URL = import.meta.env.VITE_API_BASE_URL;
 
 export const socket = io(URL, {
@@ -33,4 +39,10 @@ socket.on("live-feed-intrinsic", (data) => {
   intrinsicLiveFeedState.image = data.image;
   intrinsicLiveFeedState.frameNumber = data.frame_number;
   intrinsicLiveFeedState.framesSaved = data.frames_saved;
+});
+
+socket.on("live-feed-extrinsic", (data) => {
+  extrinsicLiveFeedState.images = data.images;
+  extrinsicLiveFeedState.frameNumber = data.frame_number;
+  extrinsicLiveFeedState.framesSaved = data.frames_saved;
 });

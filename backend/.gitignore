@@ -6,3 +6,4 @@ __pycache__
 videos2
 calibration/intrinsic_images
 calibration/example_images
+calibration/extrinsic_images

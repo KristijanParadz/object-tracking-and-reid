@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from frame_processing.multi_camera_processor import MultiCameraProcessor
 from frame_processing.config import Config
 from calibration.intrinsic_calibration import IntrinsicCameraStreamer
+from calibration.extrinsic_calibration import ExtrinsicCameraStreamer
 from typing import List
 import cv2
 
@@ -50,8 +51,13 @@ def get_intrinsic_images():
 
 
 @api_app.get("/intrinsic-camera-calibration")
-def get_intrinsic_images():
+def calibrate_intrinsic():
     return sio.intrinsic_camera_streamer.calibrate_intrinsic_from_folder()
+
+
+@api_app.get("/extrinsic-images-preview")
+def get_extrinsic_images():
+    return sio.extrinsic_camera_streamer.get_saved_images_base64()
 
 
 # ----------------------------------------------------
@@ -64,6 +70,7 @@ sio = socketio.AsyncServer(
 
 sio.multi_camera_tracker = None
 sio.intrinsic_camera_streamer = None
+sio.extrinsic_camera_streamer = None
 socketio_app = socketio.ASGIApp(sio, socketio_path="socket.io")
 
 
@@ -96,6 +103,9 @@ async def disconnect(sid):
 
     if sio.intrinsic_camera_streamer:
         sio.intrinsic_camera_streamer.stop()
+
+    if sio.extrinsic_camera_streamer:
+        sio.extrinsic_camera_streamer.stop()
 
 
 @sio.event
@@ -159,9 +169,23 @@ def handle_intrinsic_save_frame(sid, data):
     Config.INTRINSIC_FRAME_REQUESTED = True
 
 
+@sio.on('start-extrinsic-calibration')
+def start_extrinsic_calibration(sid, data):
+    print(data.get("camera_indexes"))
+    sio.extrinsic_camera_streamer = ExtrinsicCameraStreamer(
+        sio, data.get('camera_indexes'))
+    asyncio.create_task(sio.extrinsic_camera_streamer.start())
+
+
+@sio.on('extrinsic-request-frame-save')
+def handle_extrinsic_save_frame(sid, data):
+    Config.EXTRINSIC_FRAME_NUMBER_TO_SAVE = data.get('frame_number')
+    Config.EXTRINSIC_FRAME_REQUESTED = True
+
 # ----------------------------------------------------
 # Entry point
 # ----------------------------------------------------
+
 
 if __name__ == "__main__":
     uvicorn.run("main:main_app", host="0.0.0.0", port=8000, reload=True)

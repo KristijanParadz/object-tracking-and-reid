@@ -17,6 +17,8 @@ class Config:
     FULLSCREEN_CAMERA: str | None = None
     INTRINSIC_FRAME_REQUESTED: bool = False
     INTRINSIC_FRAME_NUMBER_TO_SAVE: int = -1
+    EXTRINSIC_FRAME_REQUESTED: bool = False
+    EXTRINSIC_FRAME_NUMBER_TO_SAVE: int = -1
 
     def __new__(cls, *args, **kwargs):
         raise TypeError("Config is a static class and cannot be instantiated")

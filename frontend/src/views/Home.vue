@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <button @click="startProcess">Start</button>
-      <router-link to="/calibration">Camera Calibration</router-link>
+      <router-link to="/extrinsic">Camera Calibration</router-link>
     </div>
 
     <div class="container">

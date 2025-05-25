@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Home from "../views/Home.vue";
 import Calibration from "../views/Calibration.vue";
+import ExtrinsicCalibration from "../views/ExtrinsicCalibration.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -14,6 +15,11 @@ const router = createRouter({
       path: "/calibration",
       name: "calibration",
       component: Calibration,
+    },
+    {
+      path: "/extrinsic",
+      name: "extrinsic",
+      component: ExtrinsicCalibration,
     },
   ],
 });

@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from "vue";
 import { socket, intrinsicLiveFeedState } from "@/socket";
 import axios from "axios";
+import { checkIfCameraHasIntrinsics } from "../utils/calibration";
 
 const cameras = ref([]);
 const selectedCamera = ref(null);
@@ -16,45 +17,9 @@ async function fetchAvailableCameras() {
     return {
       index: camIndex,
       name: `Camera ${camIndex}`,
-      isCalibrated: checkIfCameraIsCalibrated(camIndex),
+      isCalibrated: checkIfCameraHasIntrinsics(camIndex),
     };
   });
-}
-
-function checkIfCameraIsCalibrated(camIndex) {
-  const calibrationList =
-    JSON.parse(localStorage.getItem("calibrationData")) || [];
-
-  if (!Array.isArray(calibrationList)) {
-    return false;
-  }
-
-  const cameraData = calibrationList.find((item) => item.index === camIndex);
-
-  if (
-    !cameraData ||
-    !Array.isArray(cameraData.K) ||
-    !Array.isArray(cameraData.distCoef)
-  ) {
-    return false;
-  }
-
-  // Check if K is a 3x3 matrix
-  const isKValid =
-    cameraData.K.length === 3 &&
-    cameraData.K.every(
-      (row) =>
-        Array.isArray(row) &&
-        row.length === 3 &&
-        row.every((num) => typeof num === "number")
-    );
-
-  // Check if distCoef is an array of 5 numbers
-  const isDistCoefValid =
-    cameraData.distCoef.length === 5 &&
-    cameraData.distCoef.every((num) => typeof num === "number");
-
-  return isKValid && isDistCoefValid;
 }
 
 watch(

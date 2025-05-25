@@ -1,7 +1,7 @@
 import uvicorn
 import socketio
 import asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from frame_processing.multi_camera_processor import MultiCameraProcessor
 from frame_processing.config import Config
@@ -58,6 +58,26 @@ def calibrate_intrinsic():
 @api_app.get("/extrinsic-images-preview")
 def get_extrinsic_images():
     return sio.extrinsic_camera_streamer.get_saved_images_base64()
+
+
+@api_app.post("/extrinsic-camera-calibration")
+async def calibrate_extrinsic(body=Body(...)):
+    """
+    Accepts a list of intrinsic parameters and performs extrinsic calibration.
+    """
+
+    # Convert intrinsics list to a dict: {index: {"K": ..., "distCoef": ...}}
+    intrinsics_dict = {
+        cam['index']: {
+            'K': cam['K'],
+            'distCoef': cam['distCoef']
+        }
+        for cam in body["intrinsics"]
+    }
+
+    result = sio.extrinsic_camera_streamer.calibrate_all_extrinsics(
+        intrinsics_dict)
+    return result
 
 
 # ----------------------------------------------------

@@ -155,7 +155,7 @@ onMounted(() => {
 
     <div class="available-cameras-container">
       <span class="text-bold available-cameras-text">Available Cameras</span>
-      <div class="camera-list">
+      <div v-if="cameras.length > 0" class="camera-list">
         <div
           v-for="camera in cameras"
           :class="`available-camera ${
@@ -165,6 +165,10 @@ onMounted(() => {
         >
           {{ `${camera.name} ${camera.isCalibrated ? "je" : "nije"}` }}
         </div>
+      </div>
+
+      <div v-else class="no-cameras-text">
+        No cameras are currently available. Please connect your cameras.
       </div>
 
       <button
@@ -217,6 +221,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.no-cameras-text {
+  margin: 1.5rem 0;
+  color: white;
+}
 .image-title-container {
   display: flex;
   justify-content: space-between;

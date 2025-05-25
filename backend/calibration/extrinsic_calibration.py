@@ -8,6 +8,7 @@ import re
 from collections import deque
 from typing import Deque, Dict, Tuple
 from frame_processing.config import Config
+import numpy as np
 
 
 class ExtrinsicCameraStreamer:
@@ -158,3 +159,117 @@ class ExtrinsicCameraStreamer:
             camera_images[cam_folder] = base64_list
 
         return camera_images
+
+    def _calibrate_camera_pair(self, cam_a, cam_b, K1, dist1, K2, dist2, pattern_size, square_size):
+        try:
+            test_output_dir = "calibration/example_images"
+            # should be os.path.join(self.output_dir, f'camera{cam_a}')
+            folder1 = test_output_dir
+            # should be os.path.join(self.output_dir, f'camera{cam_b}')
+            folder2 = test_output_dir
+
+            def extract_frame_number(path):
+                match = re.search(r'frame_(\d+)\.jpg', os.path.basename(path))
+                return int(match.group(1)) if match else -1
+
+            frames1 = sorted(glob.glob(os.path.join(
+                folder1, 'frame_*.jpg')), key=extract_frame_number)
+            frames2 = sorted(glob.glob(os.path.join(
+                folder2, 'frame_*.jpg')), key=extract_frame_number)
+
+            min_pairs = min(len(frames1), len(frames2))
+            obj_points = []
+            img_points1 = []
+            img_points2 = []
+
+            objp = np.zeros((pattern_size[0]*pattern_size[1], 3), np.float32)
+            objp[:, :2] = np.mgrid[0:pattern_size[0],
+                                   0:pattern_size[1]].T.reshape(-1, 2)
+            objp *= square_size
+
+            for i in range(min_pairs):
+                img1 = cv2.imread(frames1[i], cv2.IMREAD_GRAYSCALE)
+                img2 = cv2.imread(frames2[i], cv2.IMREAD_GRAYSCALE)
+
+                ret1, corners1 = cv2.findChessboardCorners(img1, pattern_size)
+                ret2, corners2 = cv2.findChessboardCorners(img2, pattern_size)
+
+                if ret1 and ret2:
+                    obj_points.append(objp)
+                    img_points1.append(corners1)
+                    img_points2.append(corners2)
+                else:
+                    print(
+                        f"Skipped pair {i}: checkerboard not found in both views.")
+
+            if len(obj_points) < 5:
+                print("Not enough valid image pairs.")
+                return None
+
+            image_size = img1.shape[::-1]
+
+            ret, _, _, _, _, R, t, _, _ = cv2.stereoCalibrate(
+                obj_points,
+                img_points1,
+                img_points2,
+                np.array(K1), np.array(dist1),
+                np.array(K2), np.array(dist2),
+                image_size,
+                flags=cv2.CALIB_FIX_INTRINSIC
+            )
+
+            print(
+                f"Stereo RMS error for camera {cam_a} <-> {cam_b}: {ret:.4f}")
+            return R, t
+
+        except Exception as e:
+            print(f"Calibration error for camera pair {cam_a}, {cam_b}: {e}")
+            return None
+
+    def calibrate_all_extrinsics(self, intrinsics, pattern_size=Config.CHESSBOARD_PATTERN_SIZE, square_size=Config.CHESSBOARD_SQUARE_SIZE):
+        """
+        Calibrate all cameras relative to the reference (camera 0 by default), and return a dictionary:
+        {
+        camera_index: {
+            "R": [[...], [...], [...]],
+            "t": [[...], [...], [...]]
+        },
+        ...
+        }
+        """
+        reference_camera = self.camera_indexes[0]
+        extrinsics = {}
+
+        # Reference camera: Identity rotation and zero translation
+        extrinsics[reference_camera] = {
+            'R': np.eye(3).tolist(),
+            't': np.zeros((3, 1)).tolist()
+        }
+
+        reference_camera_K = intrinsics[reference_camera]["K"]
+        reference_camera_dist = intrinsics[reference_camera]["distCoef"]
+
+        for cam_id in self.camera_indexes:
+            if cam_id == reference_camera:
+                continue
+
+            camera_K = intrinsics[cam_id]["K"]
+            camera_dist = intrinsics[cam_id]["distCoef"]
+
+            print(
+                f"Calibrating camera {cam_id} relative to camera {reference_camera}...")
+            result = self._calibrate_camera_pair(
+                reference_camera, cam_id, reference_camera_K, reference_camera_dist, camera_K, camera_dist, pattern_size, square_size)
+
+            if result:
+                R, t = result
+                extrinsics[cam_id] = {
+                    'R': R.tolist(),
+                    't': t.tolist()
+                }
+            else:
+                print(
+                    f"Calibration failed for camera pair: {reference_camera} <-> {cam_id}")
+                extrinsics[cam_id] = None
+
+        return extrinsics

@@ -11,6 +11,8 @@ class Config:
     SIMILARITY_THRESHOLD: float = 0.3
     EPIPOLAR_THRESHOLD = 100
     EMBEDDING_ALPHA = 0.7
+    CHESSBOARD_PATTERN_SIZE: Tuple[int, int] = (9, 6)
+    CHESSBOARD_SQUARE_SIZE: float = 1.0
 
     # dynamic values
     RESIZE_SHAPE_FOR_FRONTEND: Tuple[int, int] = (640, 360)

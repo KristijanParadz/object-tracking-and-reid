@@ -126,7 +126,7 @@ class IntrinsicCameraStreamer:
                 print(f"Failed to encode image {img_path}: {e}")
         return base64_images
 
-    def calibrate_intrinsic_from_folder(self, pattern_size=(9, 6), square_size=1.0):
+    def calibrate_intrinsic_from_folder(self, pattern_size=Config.CHESSBOARD_PATTERN_SIZE, square_size=Config.CHESSBOARD_SQUARE_SIZE):
         """
         Performs intrinsic camera calibration from chessboard images in a folder.
 

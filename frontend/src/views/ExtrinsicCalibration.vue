@@ -28,7 +28,7 @@ async function fetchCamerasThatHaveIntrinsics() {
       index: camIndex,
       name: `Camera ${camIndex}`,
       isSelected: false,
-      isCalibrated: false, // TODO
+      isCalibrated: checkIfCameraHasExtrinsics(camIndex),
     };
   });
 }
@@ -69,6 +69,45 @@ function checkIfCameraHasIntrinsics(camIndex) {
   return isKValid && isDistCoefValid;
 }
 
+function checkIfCameraHasExtrinsics(camIndex) {
+  const calibrationList =
+    JSON.parse(localStorage.getItem("calibrationData")) || [];
+
+  if (!Array.isArray(calibrationList)) {
+    return false;
+  }
+
+  const cameraData = calibrationList.find((item) => item.index === camIndex);
+
+  if (
+    !cameraData ||
+    !Array.isArray(cameraData.R) ||
+    !Array.isArray(cameraData.t)
+  ) {
+    return false;
+  }
+
+  // Check if R is a 3x3 matrix
+  const isRValid =
+    cameraData.R.length === 3 &&
+    cameraData.R.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === 3 &&
+        row.every((num) => typeof num === "number")
+    );
+
+  // Check if t is a 3x1 matrix
+  const isTValid =
+    cameraData.t.length === 3 &&
+    cameraData.t.every(
+      (row) =>
+        Array.isArray(row) && row.length === 1 && typeof row[0] === "number"
+    );
+
+  return isRValid && isTValid;
+}
+
 watch(
   () => extrinsicLiveFeedState.framesSaved,
   () => {
@@ -92,6 +131,37 @@ function startCalibration() {
   socket.emit("start-extrinsic-calibration", {
     camera_indexes: selectedCameras.value.map((camera) => camera.index),
   });
+}
+
+async function calibrateCamera() {
+  const existingData = JSON.parse(
+    localStorage.getItem("calibrationData") || "[]"
+  );
+
+  const response = await axios.post(
+    `${import.meta.env.VITE_API_BASE_URL}/api/extrinsic-camera-calibration`,
+    {
+      intrinsics: existingData,
+    }
+  );
+
+  const extrinsics = response.data;
+
+  // Add R and t to each matching camera object
+  const updatedData = existingData.map((camera) => {
+    const extrinsic = extrinsics[camera.index];
+    if (extrinsic) {
+      return {
+        ...camera,
+        R: extrinsic.R,
+        t: extrinsic.t,
+      };
+    }
+    return camera;
+  });
+
+  localStorage.setItem("calibrationData", JSON.stringify(updatedData, null, 2));
+  restartProcess();
 }
 
 function captureImage() {
@@ -119,20 +189,28 @@ onMounted(() => {
     </div>
 
     <div class="available-cameras-container">
-      <span class="text-bold available-cameras-text">Available Cameras</span>
-      <div class="camera-list">
+      <span class="text-bold available-cameras-text"
+        >Available Cameras - Please select at least 2 cameras to start
+        calibration</span
+      >
+      <div v-if="cameras.length > 0" class="camera-list">
         <div
           v-for="(camera, index) in cameras"
           :class="`available-camera ${camera.isSelected && 'selected'}`"
           @click="() => selectCamera(index)"
         >
-          {{ camera.name }}
+          {{ `${camera.name} ${camera.isCalibrated ? "je" : "nije"}` }}
         </div>
+      </div>
+
+      <div v-else class="no-cameras-text">
+        No cameras are currently available. Please perform intrinsic calibration
+        first.
       </div>
 
       <button
         @click="startCalibration"
-        :disabled="selectedCameras.length === 0 || isProcessRunning"
+        :disabled="selectedCameras.length < 2 || isProcessRunning"
       >
         Start Calibration
       </button>
@@ -197,6 +275,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.no-cameras-text {
+  margin: 1.5rem 0;
+  color: white;
+}
 .single-images-preview-container {
   margin-top: 2rem;
 }

@@ -8,12 +8,14 @@ import {
   faPause,
   faPlay,
   faRotateRight,
+  faWrench,
 } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import {
   checkIfCameraHasExtrinsics,
   checkIfCameraHasIntrinsics,
 } from "../utils/calibration";
+import router from "../router/index";
 
 const images = computed(() => processedImagesState.images);
 
@@ -138,15 +140,37 @@ onBeforeUnmount(() => {
         >
           {{ camera.name }}
         </div>
+
+        <div class="divider"></div>
+
+        <div @click="startProcess" class="available-camera start-button">
+          START
+        </div>
+
+        <div
+          @click="() => router.push('/calibration/intrinsic')"
+          class="available-camera calibrate-button"
+        >
+          <FontAwesomeIcon :icon="faWrench" />
+          <span>Calibrate</span>
+        </div>
       </div>
 
       <div v-else class="no-cameras-text">
-        No calibrated cameras found. Please visit the Camera Calibration page to
-        calibrate your cameras.<br />Once calibration is complete, the cameras
-        will appear here.
+        <p>
+          No calibrated cameras found. Please visit the Camera Calibration page
+          to calibrate your cameras.<br />Once calibration is complete, the
+          cameras will appear here.
+        </p>
+        <div class="divider"></div>
+        <div
+          @click="() => router.push('/calibration/intrinsic')"
+          class="available-camera calibrate-button"
+        >
+          <FontAwesomeIcon :icon="faWrench" />
+          <span>Calibrate</span>
+        </div>
       </div>
-      <button @click="startProcess">Start</button>
-      <router-link to="/extrinsic">Camera Calibration</router-link>
     </div>
 
     <div class="container">
@@ -162,7 +186,6 @@ onBeforeUnmount(() => {
             @mouseenter="onMouseEnter(key)"
             @mouseleave="onMouseLeave(key)"
           >
-            <h3>{{ key }}</h3>
             <div class="image-container">
               <img
                 :src="`data:image/jpg;base64,${value}`"
@@ -192,6 +215,7 @@ onBeforeUnmount(() => {
                 </div>
               </transition>
             </div>
+            <div class="camera-name-text">{{ key }}</div>
             <transition name="fade">
               <div
                 v-if="cameraStates[key]?.fullscreen"
@@ -247,13 +271,19 @@ onBeforeUnmount(() => {
 .no-cameras-text {
   margin: 1.5rem 0;
   color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 .available-camera {
+  text-align: center;
   background: #003b3f;
   border: 2px solid #0d6362;
   color: #115c62;
   border-radius: 8px;
-  padding: 0.7rem 2rem;
+  width: 160px;
+  box-sizing: border-box;
+  padding: 0.7rem 0;
   padding-bottom: 0.6rem;
   font-size: 20px;
   font-weight: 700;
@@ -270,6 +300,33 @@ onBeforeUnmount(() => {
 .available-cameras-text {
   color: white;
 }
+.start-button {
+  background: #23b229;
+  border: 2px solid #3df34f;
+  color: #3df34f;
+}
+
+.divider {
+  width: 2px;
+  height: 50px;
+  background-color: #066268;
+}
+
+.calibrate-button {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  color: white;
+  background: #122830;
+  border: 2px solid white;
+}
+
+.camera-name-text {
+  margin-left: 1rem;
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 0.8rem;
+}
 
 .camera-list {
   margin-top: 1rem;
@@ -285,22 +342,21 @@ onBeforeUnmount(() => {
 
 .container {
   display: flex;
-  gap: 13rem;
-  margin-top: 85px;
+  margin-top: 1.5rem;
   color: white;
-  justify-content: center;
 }
 
 .camera-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
   justify-content: center;
 }
 
 .text-bold {
   font-size: 26px;
   font-weight: 700;
+  margin-left: 1rem;
 }
 
 .image-container {

@@ -12,12 +12,12 @@ const router = createRouter({
       component: Home,
     },
     {
-      path: "/calibration",
+      path: "/calibration/intrinsic",
       name: "calibration",
       component: Calibration,
     },
     {
-      path: "/extrinsic",
+      path: "/calibration/extrinsic",
       name: "extrinsic",
       component: ExtrinsicCalibration,
     },

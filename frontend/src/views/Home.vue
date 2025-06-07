@@ -158,9 +158,9 @@ onBeforeUnmount(() => {
 
       <div v-else class="no-cameras-text">
         <p>
-          No calibrated cameras found. Please visit the Camera Calibration page
-          to calibrate your cameras.<br />Once calibration is complete, the
-          cameras will appear here.
+          No calibrated cameras found. Please visit the Calibration page to
+          calibrate your cameras.<br />Once calibration is complete, the cameras
+          will appear here.
         </p>
         <div class="divider"></div>
         <div
@@ -270,6 +270,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .no-cameras-text {
   margin: 1.5rem 0;
+  margin-left: 1rem;
   color: white;
   display: flex;
   align-items: center;

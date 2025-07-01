@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { socket, extrinsicLiveFeedState } from "@/socket";
+import router from "../router/index";
 import axios from "axios";
 import {
   checkIfCameraHasExtrinsics,
@@ -103,6 +104,11 @@ function restartProcess() {
   window.location.reload();
 }
 
+function formatCameraLabel(str) {
+  if (str.length <= 6) return str.charAt(0).toUpperCase() + str.slice(1);
+  return str.charAt(0).toUpperCase() + str.slice(1, 6) + " " + str.slice(6);
+}
+
 onMounted(() => {
   fetchCamerasThatHaveIntrinsics();
 });
@@ -113,36 +119,48 @@ onMounted(() => {
     <img src="../assets/protostar-logo.png" alt="protostar-logo" />
 
     <div class="int-ext-container">
-      <div class="int-ext-text">Intrinsic</div>
-      <div class="int-ext-text">Extrinsic</div>
+      <div
+        class="intrinsic-text"
+        @click="() => router.push('/calibration/intrinsic')"
+      >
+        Intrinsic
+      </div>
+      <div class="extrinsic-text">Extrinsic</div>
     </div>
 
     <div class="available-cameras-container">
-      <span class="text-bold available-cameras-text"
-        >Available Cameras - Please select at least 2 cameras to start
-        calibration</span
+      <span class="available-cameras-text"
+        ><span class="only-available-cameras-text">Available Cameras</span> -
+        Please select at least 2 cameras to start calibration</span
       >
       <div v-if="cameras.length > 0" class="camera-list">
-        <div
-          v-for="(camera, index) in cameras"
-          :class="`available-camera ${camera.isSelected && 'selected'}`"
-          @click="() => selectCamera(index)"
-        >
-          {{ `${camera.name} ${camera.isCalibrated ? "je" : "nije"}` }}
+        <div v-for="(camera, index) in cameras">
+          <div
+            :class="`available-camera ${camera.isSelected && 'selected'}`"
+            @click="() => selectCamera(index)"
+          >
+            {{ camera.name }}
+          </div>
+          <div v-if="camera.isCalibrated" class="calibrated-text">
+            CALIBRATED
+          </div>
         </div>
+
+        <div class="divider"></div>
+
+        <button
+          @click="startCalibration"
+          :disabled="selectedCameras.length < 2 || isProcessRunning"
+          class="available-camera start-button"
+        >
+          START
+        </button>
       </div>
 
       <div v-else class="no-cameras-text">
         No cameras are currently available. Please perform intrinsic calibration
         first.
       </div>
-
-      <button
-        @click="startCalibration"
-        :disabled="selectedCameras.length < 2 || isProcessRunning"
-      >
-        Start Calibration
-      </button>
     </div>
 
     <div class="container">
@@ -178,19 +196,28 @@ onMounted(() => {
         >
           <div v-for="(value, key) in images" :key="key">
             <div class="image-title-container">
-              <span>{{ key }}</span>
-              <span>{{ extrinsicLiveFeedState.framesSaved || 0 }} / 10</span>
+              <span class="camera-name-text">{{ formatCameraLabel(key) }}</span>
+              <span class="frames-saved-text"
+                >{{ extrinsicLiveFeedState.framesSaved || 0 }} / 10</span
+              >
             </div>
 
-            <div class="image-container">
-              <img
-                :src="`data:image/jpg;base64,${value}`"
-                alt="input"
-                class="input-image"
-              />
-            </div>
+            <div class="live-feed-container">
+              <div class="image-container">
+                <img
+                  :src="`data:image/jpg;base64,${value}`"
+                  alt="input"
+                  class="input-image"
+                />
+              </div>
 
-            <button @click="captureImage">Capture</button>
+              <button
+                @click="captureImage"
+                class="available-camera start-button"
+              >
+                CAPTURE
+              </button>
+            </div>
           </div>
         </div>
 
@@ -204,9 +231,34 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.live-feed-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+}
+.camera-name-text {
+  margin-left: 1rem;
+}
+.frames-saved-text {
+  margin-right: 0.5rem;
+}
+.only-available-cameras-text {
+  font-weight: 800;
+  margin-left: 1rem;
+}
+.divider {
+  width: 2px;
+  height: 50px;
+  background-color: #066268;
+}
+
 .no-cameras-text {
   margin: 1.5rem 0;
   color: white;
+  margin-left: 1rem;
+  font-size: 18px;
 }
 .single-images-preview-container {
   margin-top: 2rem;
@@ -224,21 +276,39 @@ onMounted(() => {
 .int-ext-container {
   margin-top: 2rem;
   display: flex;
-  color: white;
   font-size: 1.5rem;
   gap: 1.5rem;
+  margin-left: 1rem;
+  font-weight: 700;
 }
 
-.int-ext-text {
+.calibrated-text {
+  text-align: center;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+
+.intrinsic-text {
+  color: #066268;
+  cursor: pointer;
+}
+
+.extrinsic-text {
+  color: white;
   cursor: pointer;
 }
 
 .available-camera {
+  text-align: center;
   background: #003b3f;
   border: 2px solid #0d6362;
   color: #115c62;
   border-radius: 8px;
-  padding: 0.7rem 2rem;
+  width: 160px;
+  box-sizing: border-box;
+  padding: 0.7rem 0;
   padding-bottom: 0.6rem;
   font-size: 20px;
   font-weight: 700;
@@ -254,6 +324,14 @@ onMounted(() => {
 }
 .available-cameras-text {
   color: white;
+  font-weight: 500;
+  font-size: 26px;
+}
+
+.start-button {
+  background: #23b229;
+  border: 2px solid #3df34f;
+  color: #3df34f;
 }
 
 .camera-list {
@@ -272,21 +350,21 @@ onMounted(() => {
 .container {
   display: flex;
   gap: 13rem;
-  margin-top: 85px;
   color: white;
-  justify-content: center;
+  margin-top: 2.5rem;
 }
 
 .camera-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
   justify-content: center;
 }
 
 .text-bold {
   font-size: 26px;
   font-weight: 700;
+  margin-left: 1rem;
 }
 
 .image-container {
@@ -294,7 +372,7 @@ onMounted(() => {
   border: 2px solid #44a9b2;
   border-radius: 8px;
   width: 640px;
-  aspect-ratio: 16 / 9;
+  height: 360px;
   display: flex;
   flex-direction: column;
   justify-content: center;

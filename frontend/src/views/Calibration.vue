@@ -268,6 +268,7 @@ onMounted(() => {
   margin: 1.5rem 0;
   color: white;
   margin-left: 1rem;
+  font-size: 18px;
 }
 .image-title-container {
   display: flex;

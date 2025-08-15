@@ -244,6 +244,7 @@ onMounted(() => {
   width: 126px;
   height: 39px;
   border-radius: 8px;
+  cursor: pointer;
 }
 .live-feed-container {
   display: flex;

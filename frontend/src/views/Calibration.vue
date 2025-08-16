@@ -111,6 +111,7 @@ function restartProcess() {
   intrinsicLiveFeedState.frameNumber = null;
   intrinsicLiveFeedState.framesSaved = null;
   isProcessRunning.value = false;
+  selectedCamera.value = null;
 }
 
 onMounted(() => {
@@ -153,7 +154,10 @@ onMounted(() => {
 
         <button
           @click="startCalibration"
-          class="available-camera start-button"
+          class="available-camera"
+          :class="{
+            'start-button': selectedCamera != null && !isProcessRunning,
+          }"
           :disabled="selectedCamera == null || isProcessRunning"
         >
           START

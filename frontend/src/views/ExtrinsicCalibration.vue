@@ -7,10 +7,13 @@ import {
   checkIfCameraHasExtrinsics,
   checkIfCameraHasIntrinsics,
 } from "../utils/calibration";
+import { useToast } from "vue-toast-notification";
 
 const cameras = ref([]);
 const imagesPreview = ref(null);
 const isProcessRunning = ref(false);
+
+const toast = useToast();
 
 const images = computed(() => {
   return extrinsicLiveFeedState.images;
@@ -45,6 +48,10 @@ watch(
   }
 );
 
+function getCameraName(key) {
+  return cameras.value.find((cam) => key === `camera${cam.index}`).name;
+}
+
 async function getCapturedImagesPreview() {
   const response = await axios.get(
     `${import.meta.env.VITE_API_BASE_URL}/api/extrinsic-images-preview`
@@ -64,34 +71,42 @@ function startCalibration() {
 }
 
 async function calibrateCamera() {
-  const existingData = JSON.parse(
-    localStorage.getItem("calibrationData") || "[]"
-  );
+  try {
+    const existingData = JSON.parse(
+      localStorage.getItem("calibrationData") || "[]"
+    );
 
-  const response = await axios.post(
-    `${import.meta.env.VITE_API_BASE_URL}/api/extrinsic-camera-calibration`,
-    {
-      intrinsics: existingData,
-    }
-  );
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_BASE_URL}/api/extrinsic-camera-calibration`,
+      {
+        intrinsics: existingData,
+      }
+    );
 
-  const extrinsics = response.data;
+    const extrinsics = response.data;
 
-  // Add R and t to each matching camera object
-  const updatedData = existingData.map((camera) => {
-    const extrinsic = extrinsics[camera.index];
-    if (extrinsic) {
-      return {
-        ...camera,
-        R: extrinsic.R,
-        t: extrinsic.t,
-      };
-    }
-    return camera;
-  });
+    // Add R and t to each matching camera object
+    const updatedData = existingData.map((camera) => {
+      const extrinsic = extrinsics[camera.index];
+      if (extrinsic) {
+        return {
+          ...camera,
+          R: extrinsic.R,
+          t: extrinsic.t,
+        };
+      }
+      return camera;
+    });
 
-  localStorage.setItem("calibrationData", JSON.stringify(updatedData, null, 2));
-  restartProcess();
+    localStorage.setItem(
+      "calibrationData",
+      JSON.stringify(updatedData, null, 2)
+    );
+    restartProcess();
+    toast.success("Cameras calibrated successfuly!");
+  } catch (e) {
+    toast.error("Something went wrong");
+  }
 }
 
 function captureImage() {
@@ -151,7 +166,10 @@ onMounted(() => {
         <button
           @click="startCalibration"
           :disabled="selectedCameras.length < 2 || isProcessRunning"
-          class="available-camera start-button"
+          class="available-camera"
+          :class="{
+            'start-button': selectedCameras.length >= 2 && !isProcessRunning,
+          }"
         >
           START
         </button>
@@ -175,7 +193,25 @@ onMounted(() => {
             :key="key"
             class="single-images-preview-container"
           >
-            <div class="camera-preview-text">{{ key }}</div>
+            <div class="camera-title-container">
+              <div class="camera-preview-text">{{ getCameraName(key) }}</div>
+
+              <div class="buttons-container">
+                <button
+                  @click="calibrateCamera"
+                  class="try-again-confirm-button"
+                >
+                  CONFIRM
+                </button>
+                <button
+                  @click="restartProcess"
+                  class="try-again-confirm-button try-again"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+
             <div class="images-container">
               <div v-for="image in cameraImages" class="image-container">
                 <img
@@ -186,8 +222,6 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <button @click="calibrateCamera">Calibrate</button>
-          <button @click="restartProcess">Try again</button>
         </div>
 
         <div
@@ -231,6 +265,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.camera-title-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 18px;
+  margin-bottom: 1rem;
+}
 .live-feed-container {
   display: flex;
   flex-direction: column;
@@ -263,10 +304,7 @@ onMounted(() => {
 .single-images-preview-container {
   margin-top: 2rem;
 }
-.camera-preview-text {
-  font-size: 18px;
-  margin-bottom: 1rem;
-}
+
 .image-title-container {
   display: flex;
   justify-content: space-between;
@@ -297,6 +335,22 @@ onMounted(() => {
 
 .extrinsic-text {
   color: white;
+  cursor: pointer;
+}
+
+.try-again {
+  margin-left: 1rem;
+}
+
+.try-again-confirm-button {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  background: #0099a3;
+  border: 2px solid #00e0ef;
+  width: 126px;
+  height: 39px;
+  border-radius: 8px;
   cursor: pointer;
 }
 

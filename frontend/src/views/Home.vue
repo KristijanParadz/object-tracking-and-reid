@@ -111,9 +111,17 @@ function selectCamera(index) {
 }
 
 function startProcess() {
+  const selectedCameras = cameras.value.filter((camera) => camera.isSelected);
+  const selectedIndexes = new Set(selectedCameras.map((c) => c.index));
+
+  const calibrationData = JSON.parse(localStorage.getItem("calibrationData"));
+  const selectedCamerasCalibrationData = calibrationData.filter(
+    (singleCamCalibData) => selectedIndexes.has(singleCamCalibData.index)
+  );
+
   socket.emit("start", {
-    cameras: cameras.value.filter((camera) => camera.isSelected),
-    calibrationData: JSON.parse(localStorage.getItem("calibrationData")),
+    cameras: selectedCameras,
+    calibrationData: selectedCamerasCalibrationData,
   });
 }
 

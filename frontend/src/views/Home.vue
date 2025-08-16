@@ -16,10 +16,12 @@ import {
   checkIfCameraHasIntrinsics,
 } from "../utils/calibration";
 import router from "../router/index";
+import CircleLoader from "../components/CircleLoader.vue";
 
 const images = computed(() => processedImagesState.images);
 
 const isPaused = ref(false);
+const isProcessRunning = ref(false);
 const cameraStates = ref({});
 const cameras = ref([]);
 
@@ -122,10 +124,16 @@ function startProcess() {
     (singleCamCalibData) => selectedIndexes.has(singleCamCalibData.index)
   );
 
+  isProcessRunning.value = true;
+
   socket.emit("start", {
     cameras: selectedCameras.value,
     calibrationData: selectedCamerasCalibrationData,
   });
+}
+
+function reload() {
+  window.location.reload();
 }
 
 onMounted(() => {
@@ -155,12 +163,17 @@ onBeforeUnmount(() => {
         <div class="divider"></div>
 
         <button
+          v-if="!isProcessRunning"
           @click="startProcess"
           :disabled="!selectedCameras.length"
           class="available-camera"
           :class="{ 'start-button': selectedCameras.length }"
         >
           START
+        </button>
+
+        <button v-else @click="reload" class="available-camera stop-button">
+          STOP
         </button>
 
         <div
@@ -275,8 +288,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-else class="image-container">
-          <img src="../assets/no-image.png" alt="input is missing" />
-          <span>No image available</span>
+          <CircleLoader v-if="isProcessRunning" />
+          <img v-else src="../assets/no-image.png" alt="input is missing" />
+          <span>
+            {{ isProcessRunning ? "Loading..." : "No image available" }}</span
+          >
         </div>
       </div>
     </div>
@@ -321,6 +337,12 @@ onBeforeUnmount(() => {
   background: #23b229;
   border: 2px solid #3df34f;
   color: #3df34f;
+}
+
+.stop-button {
+  background: #b22323;
+  border: 2px solid #f33d3d;
+  color: #f33d3d;
 }
 
 .divider {

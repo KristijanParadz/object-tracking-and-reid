@@ -110,9 +110,12 @@ function selectCamera(index) {
   cameras.value[index].isSelected = !cameras.value[index].isSelected;
 }
 
+const selectedCameras = computed(() => {
+  return cameras.value.filter((camera) => camera.isSelected);
+});
+
 function startProcess() {
-  const selectedCameras = cameras.value.filter((camera) => camera.isSelected);
-  const selectedIndexes = new Set(selectedCameras.map((c) => c.index));
+  const selectedIndexes = new Set(selectedCameras.value.map((c) => c.index));
 
   const calibrationData = JSON.parse(localStorage.getItem("calibrationData"));
   const selectedCamerasCalibrationData = calibrationData.filter(
@@ -120,7 +123,7 @@ function startProcess() {
   );
 
   socket.emit("start", {
-    cameras: selectedCameras,
+    cameras: selectedCameras.value,
     calibrationData: selectedCamerasCalibrationData,
   });
 }
@@ -151,9 +154,14 @@ onBeforeUnmount(() => {
 
         <div class="divider"></div>
 
-        <div @click="startProcess" class="available-camera start-button">
+        <button
+          @click="startProcess"
+          :disabled="!selectedCameras.length"
+          class="available-camera"
+          :class="{ 'start-button': selectedCameras.length }"
+        >
           START
-        </div>
+        </button>
 
         <div
           @click="() => router.push('/calibration/intrinsic')"

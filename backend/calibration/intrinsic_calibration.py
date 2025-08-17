@@ -22,11 +22,32 @@ class IntrinsicCameraStreamer:
         self.running = False
         self.cap = None
 
+        # new detection state
+        self.is_detected: bool = False
+        self.corners_found: int = 0
+        self.reason: str = "not_run"
+
     def encode_frame_to_base64(self, frame):
         ret, buffer = cv2.imencode('.jpg', frame)
         if not ret:
             return None
         return base64.b64encode(buffer).decode('utf-8')
+
+    def _run_detection(self, frame) -> None:
+        """Run chessboard detection and update detection state."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        flags = cv2.CALIB_CB_EXHAUSTIVE | cv2.CALIB_CB_ACCURACY
+
+        found, corners = cv2.findChessboardCornersSB(
+            gray, Config.CHESSBOARD_PATTERN_SIZE, flags=flags)
+        if found and corners is not None:
+            self.is_detected = True
+            self.corners_found = int(corners.shape[0])
+            self.reason = "found"
+        else:
+            self.is_detected = False
+            self.corners_found = 0
+            self.reason = "not_found"
 
     async def start(self):
         # Clear image output directory
@@ -49,16 +70,29 @@ class IntrinsicCameraStreamer:
             ret, frame = self.cap.read()
             if not ret:
                 print("Warning: Failed to grab frame")
+                await asyncio.sleep(0.05)
                 continue
 
             self.frame_buffer.append((self.frame_counter, frame.copy()))
+
+            # run detection every 5th frame
+            if self.frame_counter % 5 == 0:
+                try:
+                    self._run_detection(frame)
+                except Exception as e:
+                    self.is_detected = False
+                    self.corners_found = 0
+                    self.reason = f"error:{type(e).__name__}"
 
             encoded = self.encode_frame_to_base64(frame)
             if encoded:
                 await self.sio.emit('live-feed-intrinsic', {
                     'image': encoded,
                     'frame_number': self.frame_counter,
-                    'frames_saved': self.frames_saved
+                    'frames_saved': self.frames_saved,
+                    'is_detected': self.is_detected,
+                    'corners_found': self.corners_found,
+                    'reason': self.reason
                 })
 
             if Config.INTRINSIC_FRAME_REQUESTED:
@@ -83,13 +117,10 @@ class IntrinsicCameraStreamer:
                           f"Saved fallback frame {fallback_fn} -> {save_path}")
 
             self.frame_counter += 1
-            await asyncio.sleep(0.05)  # Use asyncio sleep in async context
 
-        # Clean up after stopping
         self._cleanup()
 
     def stop(self):
-        """Call this from outside to stop the feed and clean everything up."""
         self.running = False
 
     def _cleanup(self):

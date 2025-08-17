@@ -214,7 +214,14 @@ onMounted(() => {
               class="input-image"
             />
           </div>
-          <button class="available-camera start-button" @click="captureImage">
+          <button
+            :disabled="!intrinsicLiveFeedState.isDetected"
+            :class="{
+              'available-camera': true,
+              'start-button': intrinsicLiveFeedState.isDetected,
+            }"
+            @click="captureImage"
+          >
             CAPTURE
           </button>
         </div>

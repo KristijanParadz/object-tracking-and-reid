@@ -9,6 +9,8 @@ export const intrinsicLiveFeedState = reactive({
   image: null,
   frameNumber: null,
   framesSaved: null,
+  isDetected: false,
+  reason: null,
 });
 
 export const extrinsicLiveFeedState = reactive({
@@ -39,6 +41,8 @@ socket.on("live-feed-intrinsic", (data) => {
   intrinsicLiveFeedState.image = data.image;
   intrinsicLiveFeedState.frameNumber = data.frame_number;
   intrinsicLiveFeedState.framesSaved = data.frames_saved;
+  intrinsicLiveFeedState.isDetected = data.is_detected;
+  intrinsicLiveFeedState.reason = data.reason;
 });
 
 socket.on("live-feed-extrinsic", (data) => {

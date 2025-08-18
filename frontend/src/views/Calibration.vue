@@ -82,13 +82,13 @@ async function calibrateCamera() {
     if (existingIndex !== -1) {
       // Update existing entry
       calibrationList[existingIndex].K = data.K;
-      calibrationList[existingIndex].distCoef = data.distCoef;
+      calibrationList[existingIndex].distCoef = data.dist_coef;
     } else {
       // Create new entry
       calibrationList.push({
         index: selectedCamera.value.index,
         K: data.K,
-        distCoef: data.distCoef,
+        distCoef: data.dist_coef,
       });
     }
 

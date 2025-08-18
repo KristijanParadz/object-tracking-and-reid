@@ -1,45 +1,81 @@
-import cv2
-import base64
-import glob
+from __future__ import annotations
+
 import asyncio
+import base64
 import os
+import re
 import shutil
 from collections import deque
-from typing import Deque, Tuple
-from frame_processing.config import Config
-import re
+from typing import Deque, List, Optional, Tuple
+
+import cv2
 import numpy as np
+import socketio
+
+from frame_processing.config import Config
 
 
 class IntrinsicCameraStreamer:
-    def __init__(self, sio, camera_index: int, output_dir='calibration/intrinsic_images'):
+    """
+    Streams frames from a camera, runs chessboard detection periodically,
+    allows saving specific frames to disk, and can compute intrinsic calibration
+    from the saved images.
+    """
+
+    sio: socketio.AsyncServer
+    camera_index: int
+    output_dir: str
+    frame_buffer: Deque[Tuple[int, np.ndarray]]
+    frame_counter: int
+    frames_saved: int
+    running: bool
+    cap: Optional[cv2.VideoCapture]
+
+    # Detection state (emitted to frontend)
+    is_detected: bool
+    corners_found: int
+    reason: str
+
+    def __init__(
+        self,
+        sio: socketio.AsyncServer,
+        camera_index: int,
+        output_dir: str = "calibration/intrinsic_images",
+    ) -> None:
         self.sio = sio
         self.camera_index = camera_index
         self.output_dir = output_dir
-        self.frame_buffer: Deque[Tuple[int, any]] = deque(maxlen=30)
+        self.frame_buffer = deque(maxlen=30)
         self.frame_counter = 0
         self.frames_saved = 0
         self.running = False
         self.cap = None
 
-        # new detection state
-        self.is_detected: bool = False
-        self.corners_found: int = 0
-        self.reason: str = "not_run"
+        # Detection state
+        self.is_detected = False
+        self.corners_found = 0
+        self.reason = "not_run"
 
-    def encode_frame_to_base64(self, frame):
-        ret, buffer = cv2.imencode('.jpg', frame)
-        if not ret:
+    # ---------------- Encoding / I/O ----------------
+
+    @staticmethod
+    def encode_frame_to_base64(frame: np.ndarray) -> Optional[str]:
+        """Encode a frame to base64-encoded JPEG; return None on failure."""
+        ok, buffer = cv2.imencode(".jpg", frame)
+        if not ok:
             return None
-        return base64.b64encode(buffer).decode('utf-8')
+        return base64.b64encode(buffer).decode("utf-8")
 
-    def _run_detection(self, frame) -> None:
+    # ---------------- Detection ----------------
+
+    def _run_detection(self, frame: np.ndarray) -> None:
         """Run chessboard detection and update detection state."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         flags = cv2.CALIB_CB_EXHAUSTIVE | cv2.CALIB_CB_ACCURACY
 
         found, corners = cv2.findChessboardCornersSB(
-            gray, Config.CHESSBOARD_PATTERN_SIZE, flags=flags)
+            gray, Config.CHESSBOARD_PATTERN_SIZE, flags=flags
+        )
         if found and corners is not None:
             self.is_detected = True
             self.corners_found = int(corners.shape[0])
@@ -49,7 +85,17 @@ class IntrinsicCameraStreamer:
             self.corners_found = 0
             self.reason = "not_found"
 
-    async def start(self):
+    # ---------------- Streaming ----------------
+
+    async def start(self) -> None:
+        """
+        Start streaming frames:
+        - clears output directory,
+        - reads frames,
+        - runs detection every 5th frame,
+        - serves live images to frontend,
+        - saves requested frames from a rolling buffer.
+        """
         # Clear image output directory
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
@@ -67,122 +113,142 @@ class IntrinsicCameraStreamer:
             if self.frames_saved == 10:
                 self.stop()
 
-            ret, frame = self.cap.read()
-            if not ret:
+            ok, frame = self.cap.read()
+            if not ok:
                 print("Warning: Failed to grab frame")
                 await asyncio.sleep(0.05)
                 continue
 
+            # Store a copy in the rolling buffer: (frame_number, frame)
             self.frame_buffer.append((self.frame_counter, frame.copy()))
 
-            # run detection every 5th frame
+            # Run detection every 5th frame
             if self.frame_counter % 5 == 0:
                 try:
                     self._run_detection(frame)
-                except Exception as e:
+                except Exception as exc:  # be robust to OpenCV edge cases
                     self.is_detected = False
                     self.corners_found = 0
-                    self.reason = f"error:{type(e).__name__}"
+                    self.reason = f"error:{type(exc).__name__}"
 
+            # Emit current frame to frontend
             encoded = self.encode_frame_to_base64(frame)
-            if encoded:
-                await self.sio.emit('live-feed-intrinsic', {
-                    'image': encoded,
-                    'frame_number': self.frame_counter,
-                    'frames_saved': self.frames_saved,
-                    'is_detected': self.is_detected,
-                    'corners_found': self.corners_found,
-                    'reason': self.reason
-                })
+            if encoded is not None:
+                await self.sio.emit(
+                    "live-feed-intrinsic",
+                    {
+                        "image": encoded,
+                        "frame_number": self.frame_counter,
+                        "frames_saved": self.frames_saved,
+                        "is_detected": self.is_detected,
+                        "corners_found": self.corners_found,
+                        "reason": self.reason,
+                    },
+                )
 
+            # Handle save request from Config (static runtime flags)
             if Config.INTRINSIC_FRAME_REQUESTED:
                 Config.INTRINSIC_FRAME_REQUESTED = False
 
-                found = False
+                found_in_buffer = False
                 for frame_number, saved_frame in self.frame_buffer:
                     if frame_number == Config.INTRINSIC_FRAME_NUMBER_TO_SAVE:
                         save_path = f"{self.output_dir}/frame_{frame_number}.jpg"
                         cv2.imwrite(save_path, saved_frame)
                         self.frames_saved += 1
                         print(f"Saved frame {frame_number} -> {save_path}")
-                        found = True
+                        found_in_buffer = True
                         break
 
-                if not found and self.frame_buffer:
+                # Fallback: save the oldest buffered frame if the requested one is gone
+                if not found_in_buffer and self.frame_buffer:
                     fallback_fn, fallback_frame = self.frame_buffer[0]
                     save_path = f"{self.output_dir}/frame_{fallback_fn}.jpg"
                     cv2.imwrite(save_path, fallback_frame)
                     self.frames_saved += 1
-                    print(f"Warning: Requested frame {Config.INTRINSIC_FRAME_NUMBER_TO_SAVE} not in buffer. "
-                          f"Saved fallback frame {fallback_fn} -> {save_path}")
+                    print(
+                        "Warning: Requested frame "
+                        f"{Config.INTRINSIC_FRAME_NUMBER_TO_SAVE} not in buffer. "
+                        f"Saved fallback frame {fallback_fn} -> {save_path}"
+                    )
 
             self.frame_counter += 1
 
         self._cleanup()
 
-    def stop(self):
+    def stop(self) -> None:
+        """Signal the streaming loop to stop."""
         self.running = False
 
-    def _cleanup(self):
+    def _cleanup(self) -> None:
+        """Release camera and clear buffers."""
         if self.cap and self.cap.isOpened():
             self.cap.release()
         self.frame_buffer.clear()
 
-    def get_saved_images_base64(self):
+    # ---------------- Utilities ----------------
+
+    def get_saved_images_base64(self) -> List[str]:
         """
-        Returns a list of base64-encoded strings of all images in self.output_dir,
-        sorted by the frame number in the filename.
+        Return base64 strings of all saved images in `output_dir`,
+        sorted by frame number in filename.
         """
-        base64_images = []
+        base64_images: List[str] = []
         if not os.path.exists(self.output_dir):
             print(f"Directory {self.output_dir} does not exist.")
             return base64_images
 
-        def extract_frame_number(path):
-            match = re.search(r'frame_(\d+)\.jpg', os.path.basename(path))
+        def extract_frame_number(path: str) -> int:
+            match = re.search(r"frame_(\d+)\.jpg", os.path.basename(path))
             return int(match.group(1)) if match else -1
 
+        import glob  # local import to reduce module scope
         image_paths = sorted(
-            glob.glob(os.path.join(self.output_dir, '*.jpg')),
-            key=extract_frame_number
+            glob.glob(os.path.join(self.output_dir, "*.jpg")), key=extract_frame_number
         )
 
         for img_path in image_paths:
             try:
-                with open(img_path, 'rb') as image_file:
-                    encoded = base64.b64encode(
-                        image_file.read()).decode('utf-8')
+                with open(img_path, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
                     base64_images.append(encoded)
-            except Exception as e:
-                print(f"Failed to encode image {img_path}: {e}")
+            except Exception as exc:
+                print(f"Failed to encode image {img_path}: {exc}")
         return base64_images
 
-    def calibrate_intrinsic_from_folder(self, pattern_size=Config.CHESSBOARD_PATTERN_SIZE, square_size=Config.CHESSBOARD_SQUARE_SIZE):
+    def calibrate_intrinsic_from_folder(
+        self,
+        pattern_size: Tuple[int, int] = Config.CHESSBOARD_PATTERN_SIZE,
+        square_size: float = Config.CHESSBOARD_SQUARE_SIZE,
+    ) -> dict:
         """
-        Performs intrinsic camera calibration from chessboard images in a folder.
+        Compute intrinsic calibration from chessboard images in `output_dir`.
 
         Args:
-            image_dir (str): Path to the folder containing calibration images.
-            pattern_size (tuple): Number of inner corners per chessboard row and column (cols, rows).
-            square_size (float): Size of a square on the chessboard (in user-defined units, e.g., mm).
+            pattern_size: (cols, rows) inner-corner count per chessboard.
+            square_size: Physical size of one square (user units, e.g., mm).
 
         Returns:
-            dict: Calibration results containing camera matrix, distortion coefficients, etc.
+            dict with:
+              - "K": camera matrix (3x3) as nested list
+              - "dist_coef": distortion coefficients as flat list
+            (You can also include 'image_size' if desired.)
         """
         # Termination criteria for sub-pixel refinement
         criteria = (cv2.TERM_CRITERIA_EPS +
-                    cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+                    cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
 
-        # Prepare object points like (0,0,0), (1,0,0), ..., (8,5,0) multiplied by square size
+        # Prepare object points grid, scaled by square_size
         objp = np.zeros((pattern_size[1] * pattern_size[0], 3), np.float32)
-        objp[:, :2] = np.mgrid[0:pattern_size[0],
-                               0:pattern_size[1]].T.reshape(-1, 2)
-        objp *= square_size
+        objp[:, :2] = np.mgrid[0: pattern_size[0],
+                               0: pattern_size[1]].T.reshape(-1, 2)
+        objp *= float(square_size)
 
-        objpoints = []  # 3D points in real-world space
-        imgpoints = []  # 2D points in image plane
+        objpoints: List[np.ndarray] = []  # 3D points in world coords
+        imgpoints: List[np.ndarray] = []  # 2D points in image coords
 
-        images = sorted(glob.glob(os.path.join(self.output_dir, '*.jpg')))
+        import glob  # local import to reduce module scope
+        images = sorted(glob.glob(os.path.join(self.output_dir, "*.jpg")))
         if not images:
             raise FileNotFoundError(
                 f"No images found in directory: {self.output_dir}")
@@ -190,20 +256,24 @@ class IntrinsicCameraStreamer:
         image_shape = None
         for fname in images:
             img = cv2.imread(fname)
+            if img is None:
+                print(f"Warning: Failed to read {fname}")
+                continue
+
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-            # Save image size for calibration
             if image_shape is None:
-                image_shape = gray.shape[::-1]
+                image_shape = gray.shape[::-1]  # (width, height)
 
-            # Find the chessboard corners
-            ret, corners = cv2.findChessboardCorners(gray, pattern_size, None)
-
-            if ret:
+            # Find the chessboard corners (classic detector here; robust & fast)
+            found, corners = cv2.findChessboardCorners(
+                gray, pattern_size, None)
+            if found:
+                # Sub-pixel refinement
+                corners_refined = cv2.cornerSubPix(
+                    gray, corners, (11, 11), (-1, -1), criteria
+                )
                 objpoints.append(objp)
-                corners2 = cv2.cornerSubPix(
-                    gray, corners, (11, 11), (-1, -1), criteria)
-                imgpoints.append(corners2)
+                imgpoints.append(corners_refined)
             else:
                 print(f"Warning: Chessboard not found in {fname}")
 
@@ -212,11 +282,20 @@ class IntrinsicCameraStreamer:
                 "No valid chessboard corners found in any image.")
 
         # Calibrate camera
-        ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+        ok, K, dist, rvecs, tvecs = cv2.calibrateCamera(
             objpoints, imgpoints, image_shape, None, None
         )
+        if not ok:
+            print("Warning: cv2.calibrateCamera returned non-optimal solution.")
+
+        # OpenCV returns distortion as (N,1); flatten to a 1D Python list
+        dist_flat = dist.ravel().tolist()
 
         return {
-            "K": camera_matrix.tolist(),
-            "distCoef": dist_coeffs.tolist()[0],
+            "K": K.tolist(),
+            "dist_coef": dist_flat,  # <-- PEP-8 name; your loader accepts this
+            # Optional extras you may find useful later:
+            # "image_size": list(image_shape),
+            # "rvecs": [r.ravel().tolist() for r in rvecs],
+            # "tvecs": [t.ravel().tolist() for t in tvecs],
         }

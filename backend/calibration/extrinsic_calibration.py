@@ -200,11 +200,8 @@ class ExtrinsicCameraStreamer:
 
     def _calibrate_camera_pair(self, cam_a, cam_b, K1, dist1, K2, dist2, pattern_size, square_size):
         try:
-            test_output_dir = "calibration/example_images"
-            # should be os.path.join(self.output_dir, f'camera{cam_a}')
-            folder1 = test_output_dir
-            # should be os.path.join(self.output_dir, f'camera{cam_b}')
-            folder2 = test_output_dir
+            folder1 = os.path.join(self.output_dir, f'camera{cam_a}')
+            folder2 = os.path.join(self.output_dir, f'camera{cam_b}')
 
             def extract_frame_number(path):
                 match = re.search(r'frame_(\d+)\.jpg', os.path.basename(path))

@@ -182,12 +182,10 @@ class IntrinsicCameraStreamer:
         objpoints = []  # 3D points in real-world space
         imgpoints = []  # 2D points in image plane
 
-        test_output_dir = "calibration/example_images"
-
-        images = sorted(glob.glob(os.path.join(test_output_dir, '*.jpg')))
+        images = sorted(glob.glob(os.path.join(self.output_dir, '*.jpg')))
         if not images:
             raise FileNotFoundError(
-                f"No images found in directory: {test_output_dir}")
+                f"No images found in directory: {self.output_dir}")
 
         image_shape = None
         for fname in images:

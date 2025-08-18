@@ -8,6 +8,8 @@ import {
   checkIfCameraHasIntrinsics,
 } from "../utils/calibration";
 import { useToast } from "vue-toast-notification";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { faHouse } from "@fortawesome/free-regular-svg-icons";
 
 const cameras = ref([]);
 const imagesPreview = ref(null);
@@ -21,6 +23,10 @@ const images = computed(() => {
 const selectedCameras = computed(() => {
   return cameras.value.filter((camera) => camera.isSelected);
 });
+
+function returnToHome() {
+  router.push("/");
+}
 
 async function fetchCamerasThatHaveIntrinsics() {
   const response = await axios.get(
@@ -131,7 +137,13 @@ onMounted(() => {
 
 <template>
   <main>
-    <img src="../assets/protostar-logo.png" alt="protostar-logo" />
+    <div class="header">
+      <img src="../assets/protostar-logo.png" alt="protostar-logo" />
+      <button @click="returnToHome" class="home-button">
+        <div>Home</div>
+        <FontAwesomeIcon :icon="faHouse" />
+      </button>
+    </div>
 
     <div class="int-ext-container">
       <div
@@ -265,6 +277,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.home-button {
+  display: flex;
+  width: 124px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid #44a9b2;
+  background: #0b181e;
+  color: white;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 600;
+  gap: 12px;
+  cursor: pointer;
+}
 .camera-title-container {
   display: flex;
   justify-content: space-between;

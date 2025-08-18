@@ -5,6 +5,8 @@ import axios from "axios";
 import { checkIfCameraHasIntrinsics } from "../utils/calibration";
 import router from "../router/index";
 import { useToast } from "vue-toast-notification";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { faHouse } from "@fortawesome/free-regular-svg-icons";
 
 const cameras = ref([]);
 const selectedCamera = ref(null);
@@ -12,6 +14,10 @@ const imagesPreview = ref(null);
 const isProcessRunning = ref(false);
 
 const toast = useToast();
+
+function returnToHome() {
+  router.push("/");
+}
 
 async function fetchAvailableCameras() {
   const response = await axios.get(
@@ -121,7 +127,13 @@ onMounted(() => {
 
 <template>
   <main>
-    <img src="../assets/protostar-logo.png" alt="protostar-logo" />
+    <div class="header">
+      <img src="../assets/protostar-logo.png" alt="protostar-logo" />
+      <button @click="returnToHome" class="home-button">
+        <div>Home</div>
+        <FontAwesomeIcon :icon="faHouse" />
+      </button>
+    </div>
 
     <div class="int-ext-container">
       <div class="intrinsic-text">Intrinsic</div>
@@ -236,6 +248,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.home-button {
+  display: flex;
+  width: 124px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid #44a9b2;
+  background: #0b181e;
+  color: white;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 600;
+  gap: 12px;
+  cursor: pointer;
+}
 .only-title {
   width: 644px;
   display: flex;

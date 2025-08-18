@@ -24,11 +24,34 @@ class ExtrinsicCameraStreamer:
         self.frames_saved = 0
         self.running = False
 
+        # live detection state (overall, across all cameras)
+        self.is_detected: bool = False
+        self._detection_stride = 5       # run detection every 5th frame
+        self._live_max_side = 640        # downscale for speed
+
     def encode_frame_to_base64(self, frame):
         ret, buffer = cv2.imencode('.jpg', frame)
         if not ret:
             return None
         return base64.b64encode(buffer).decode('utf-8')
+
+    def _downscale_keep_aspect(self, img, max_side):
+        h, w = img.shape[:2]
+        m = max(h, w)
+        if m <= max_side:
+            return img
+        scale = max_side / float(m)
+        new_w, new_h = int(w * scale), int(h * scale)
+        return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    def _found_chessboard(self, frame_bgr) -> bool:
+        """Fast check on a single frame (downsized)."""
+        small = self._downscale_keep_aspect(frame_bgr, self._live_max_side)
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        flags = cv2.CALIB_CB_EXHAUSTIVE | cv2.CALIB_CB_ACCURACY
+        found, _ = cv2.findChessboardCornersSB(
+            gray, Config.CHESSBOARD_PATTERN_SIZE, flags=flags)
+        return bool(found)
 
     async def start(self):
         if os.path.exists(self.output_dir):
@@ -51,6 +74,7 @@ class ExtrinsicCameraStreamer:
             images_base64 = {}
             current_frames = {}
 
+            # grab frames
             for idx, cap in self.captures.items():
                 ret, frame = cap.read()
                 if not ret:
@@ -69,13 +93,27 @@ class ExtrinsicCameraStreamer:
                         f"Error: Failed to encode frame from camera{idx}. Stopping.")
                     self.stop()
                     return
-
                 images_base64[f'camera{idx}'] = encoded
 
+            # === NEW: run detection every Nth frame and update overall boolean ===
+            if self.frame_counter % self._detection_stride == 0:
+                try:
+                    all_found = True
+                    for idx, frm in current_frames.items():
+                        if not self._found_chessboard(frm):
+                            all_found = False
+                            break
+                    self.is_detected = all_found
+                except Exception:
+                    # On any error, set false but don't break the loop
+                    self.is_detected = False
+
+            # emit live feed with overall is_detected flag
             await self.sio.emit('live-feed-extrinsic', {
                 'images': images_base64,
                 'frame_number': self.frame_counter,
-                'frames_saved': self.frames_saved
+                'frames_saved': self.frames_saved,
+                'is_detected': self.is_detected
             })
 
             # === Save-on-request logic ===

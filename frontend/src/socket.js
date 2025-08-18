@@ -42,11 +42,11 @@ socket.on("live-feed-intrinsic", (data) => {
   intrinsicLiveFeedState.frameNumber = data.frame_number;
   intrinsicLiveFeedState.framesSaved = data.frames_saved;
   intrinsicLiveFeedState.isDetected = data.is_detected;
-  intrinsicLiveFeedState.reason = data.reason;
 });
 
 socket.on("live-feed-extrinsic", (data) => {
   extrinsicLiveFeedState.images = data.images;
   extrinsicLiveFeedState.frameNumber = data.frame_number;
   extrinsicLiveFeedState.framesSaved = data.frames_saved;
+  extrinsicLiveFeedState.isDetected = data.is_detected;
 });

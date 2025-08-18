@@ -25,7 +25,7 @@ const selectedCameras = computed(() => {
 });
 
 function returnToHome() {
-  router.push("/");
+  window.location.href = "/";
 }
 
 async function fetchCamerasThatHaveIntrinsics() {
@@ -259,7 +259,11 @@ onMounted(() => {
 
               <button
                 @click="captureImage"
-                class="available-camera start-button"
+                :disabled="!extrinsicLiveFeedState.isDetected"
+                :class="{
+                  'available-camera': true,
+                  'start-button': extrinsicLiveFeedState.isDetected,
+                }"
               >
                 CAPTURE
               </button>

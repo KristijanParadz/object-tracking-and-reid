@@ -16,7 +16,7 @@ const isProcessRunning = ref(false);
 const toast = useToast();
 
 function returnToHome() {
-  router.push("/");
+  window.location.href = "/";
 }
 
 async function fetchAvailableCameras() {

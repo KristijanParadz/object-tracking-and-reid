@@ -14,9 +14,10 @@ import socketio
 
 from frame_processing.config import Config
 from calibration.utils import make_frame_encoder, make_frame_number_extractor
+from interfaces.abcs import ExtrinsicCalibratorBase
 
 
-class ExtrinsicCameraStreamer:
+class ExtrinsicCameraStreamer(ExtrinsicCalibratorBase):
     """
     - Streams frames from multiple cameras.
     - Periodically checks for a chessboard in all views (for operator feedback).

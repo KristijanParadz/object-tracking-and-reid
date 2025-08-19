@@ -13,9 +13,10 @@ import socketio
 
 from frame_processing.config import Config
 from calibration.utils import make_frame_encoder, make_frame_number_extractor
+from interfaces.abcs import IntrinsicCalibratorBase
 
 
-class IntrinsicCameraStreamer:
+class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
     """
     Streams frames from a camera, runs chessboard detection periodically,
     allows saving specific frames to disk, and can compute intrinsic calibration

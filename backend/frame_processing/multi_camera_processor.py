@@ -12,6 +12,7 @@ from frame_processing.config import Config
 from frame_processing.global_id_manager import GlobalIDManager
 from frame_processing.single_camera_tracker import YOLOVideoTracker
 from calibration.camera_calibration import CalibrationParameters
+from interfaces.protocols import GlobalIDManagerProtocol
 
 
 class MultiCameraProcessor:
@@ -24,7 +25,7 @@ class MultiCameraProcessor:
     sio: socketio.AsyncServer
     paused: bool
     stopped: bool
-    global_manager: GlobalIDManager
+    global_manager: GlobalIDManagerProtocol
     calibration_data: list[Mapping[str, Any]]
     trackers: list[YOLOVideoTracker]
 

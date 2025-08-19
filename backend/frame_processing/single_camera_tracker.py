@@ -17,6 +17,7 @@ from frame_processing.config import Config
 from frame_processing.global_id_manager import ClassID, GlobalIDManager, ObjectID
 from frame_processing.re_id_model import ReIDModel
 from frame_processing.utils import Point
+from interfaces.protocols import ReIDModelProtocol, GlobalIDManagerProtocol
 
 
 @dataclass
@@ -57,8 +58,8 @@ class YOLOVideoTracker:
     tracks: Dict[ObjectID, LocalTrackEntry]
     last_bounding_boxes: List[BoundingBox]
     last_local_ids: List[ObjectID]
-    reid_model: ReIDModel
-    global_manager: GlobalIDManager
+    reid_model: ReIDModelProtocol
+    global_manager: GlobalIDManagerProtocol
     calibration_params: CalibrationParameters
 
     def __init__(

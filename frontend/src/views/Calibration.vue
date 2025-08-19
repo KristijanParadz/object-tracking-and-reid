@@ -120,6 +120,10 @@ function restartProcess() {
   selectedCamera.value = null;
 }
 
+function navigateToExtrinsic() {
+  window.location.href = "/calibration/extrinsic";
+}
+
 onMounted(() => {
   fetchAvailableCameras();
 });
@@ -137,12 +141,7 @@ onMounted(() => {
 
     <div class="int-ext-container">
       <div class="intrinsic-text">Intrinsic</div>
-      <div
-        @click="() => router.push('/calibration/extrinsic')"
-        class="extrinsic-text"
-      >
-        Extrinsic
-      </div>
+      <div @click="navigateToExtrinsic" class="extrinsic-text">Extrinsic</div>
     </div>
 
     <div class="available-cameras-container">

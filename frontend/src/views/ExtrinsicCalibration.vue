@@ -130,6 +130,10 @@ function formatCameraLabel(str) {
   return str.charAt(0).toUpperCase() + str.slice(1, 6) + " " + str.slice(6);
 }
 
+function navigateToIntrinsic() {
+  window.location.href = "/calibration/intrinsic";
+}
+
 onMounted(() => {
   fetchCamerasThatHaveIntrinsics();
 });
@@ -146,12 +150,7 @@ onMounted(() => {
     </div>
 
     <div class="int-ext-container">
-      <div
-        class="intrinsic-text"
-        @click="() => router.push('/calibration/intrinsic')"
-      >
-        Intrinsic
-      </div>
+      <div class="intrinsic-text" @click="navigateToIntrinsic">Intrinsic</div>
       <div class="extrinsic-text">Extrinsic</div>
     </div>
 

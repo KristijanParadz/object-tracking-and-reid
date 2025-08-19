@@ -109,12 +109,17 @@ async function fetchAvailableCameras() {
 }
 
 function selectCamera(index) {
+  if (isProcessRunning.value) return;
   cameras.value[index].isSelected = !cameras.value[index].isSelected;
 }
 
 const selectedCameras = computed(() => {
   return cameras.value.filter((camera) => camera.isSelected);
 });
+
+function navigateToCalibration() {
+  window.location.href = "/calibration/intrinsic";
+}
 
 function startProcess() {
   const selectedIndexes = new Set(selectedCameras.value.map((c) => c.index));
@@ -177,7 +182,7 @@ onBeforeUnmount(() => {
         </button>
 
         <div
-          @click="() => router.push('/calibration/intrinsic')"
+          @click="navigateToCalibration"
           class="available-camera calibrate-button"
         >
           <FontAwesomeIcon :icon="faWrench" />
@@ -193,7 +198,7 @@ onBeforeUnmount(() => {
         </p>
         <div class="divider"></div>
         <div
-          @click="() => router.push('/calibration/intrinsic')"
+          @click="navigateToCalibration"
           class="available-camera calibrate-button"
         >
           <FontAwesomeIcon :icon="faWrench" />

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
-import re
 import shutil
 from collections import deque
 from typing import Deque, List, Optional, Tuple
@@ -13,6 +12,7 @@ import numpy as np
 import socketio
 
 from frame_processing.config import Config
+from calibration.utils import make_frame_encoder, make_frame_number_extractor
 
 
 class IntrinsicCameraStreamer:
@@ -55,16 +55,6 @@ class IntrinsicCameraStreamer:
         self.is_detected = False
         self.corners_found = 0
         self.reason = "not_run"
-
-    # ---------------- Encoding / I/O ----------------
-
-    @staticmethod
-    def encode_frame_to_base64(frame: np.ndarray) -> Optional[str]:
-        """Encode a frame to base64-encoded JPEG; return None on failure."""
-        ok, buffer = cv2.imencode(".jpg", frame)
-        if not ok:
-            return None
-        return base64.b64encode(buffer).decode("utf-8")
 
     # ---------------- Detection ----------------
 
@@ -132,7 +122,9 @@ class IntrinsicCameraStreamer:
                     self.reason = f"error:{type(exc).__name__}"
 
             # Emit current frame to frontend
-            encoded = self.encode_frame_to_base64(frame)
+            encode_frame_to_base64 = make_frame_encoder()
+
+            encoded = encode_frame_to_base64(frame)
             if encoded is not None:
                 await self.sio.emit(
                     "live-feed-intrinsic",
@@ -198,9 +190,7 @@ class IntrinsicCameraStreamer:
             print(f"Directory {self.output_dir} does not exist.")
             return base64_images
 
-        def extract_frame_number(path: str) -> int:
-            match = re.search(r"frame_(\d+)\.jpg", os.path.basename(path))
-            return int(match.group(1)) if match else -1
+        extract_frame_number = make_frame_number_extractor()
 
         import glob  # local import to reduce module scope
         image_paths = sorted(

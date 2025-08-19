@@ -4,7 +4,6 @@ import asyncio
 import base64
 import glob
 import os
-import re
 import shutil
 from collections import deque
 from typing import Deque, Dict, List, Optional, Tuple
@@ -14,6 +13,7 @@ import numpy as np
 import socketio
 
 from frame_processing.config import Config
+from calibration.utils import make_frame_encoder, make_frame_number_extractor
 
 
 class ExtrinsicCameraStreamer:
@@ -58,15 +58,7 @@ class ExtrinsicCameraStreamer:
         self._detection_stride = 5   # run detection every 5th frame
         self._live_max_side = 640    # downscale for speed
 
-    # ---------------- Encoding / helpers ----------------
-
-    @staticmethod
-    def encode_frame_to_base64(frame: np.ndarray) -> Optional[str]:
-        """Encode a frame to base64-encoded JPEG; return None on failure."""
-        ok, buffer = cv2.imencode(".jpg", frame)
-        if not ok:
-            return None
-        return base64.b64encode(buffer).decode("utf-8")
+    # ---------------- Helpers ----------------
 
     @staticmethod
     def _downscale_keep_aspect(img: np.ndarray, max_side: int) -> np.ndarray:
@@ -130,7 +122,9 @@ class ExtrinsicCameraStreamer:
                     (self.frame_counter, frame.copy()))
                 current_frames[idx] = frame
 
-                encoded = self.encode_frame_to_base64(frame)
+                encode_frame_to_base64 = make_frame_encoder()
+
+                encoded = encode_frame_to_base64(frame)
                 if encoded is None:
                     print(
                         f"Error: Failed to encode frame from camera{idx}. Stopping.")
@@ -223,9 +217,7 @@ class ExtrinsicCameraStreamer:
             print(f"Directory {self.output_dir} does not exist.")
             return camera_images
 
-        def extract_frame_number(path: str) -> int:
-            m = re.search(r"frame_(\d+)\.jpg", os.path.basename(path))
-            return int(m.group(1)) if m else -1
+        extract_frame_number = make_frame_number_extractor()
 
         for cam_folder in os.listdir(self.output_dir):
             cam_path = os.path.join(self.output_dir, cam_folder)
@@ -270,9 +262,7 @@ class ExtrinsicCameraStreamer:
             folder1 = os.path.join(self.output_dir, f"camera{cam_a}")
             folder2 = os.path.join(self.output_dir, f"camera{cam_b}")
 
-            def extract_frame_number(path: str) -> int:
-                m = re.search(r"frame_(\d+)\.jpg", os.path.basename(path))
-                return int(m.group(1)) if m else -1
+            extract_frame_number = make_frame_number_extractor()
 
             frames1 = sorted(glob.glob(os.path.join(
                 folder1, "frame_*.jpg")), key=extract_frame_number)

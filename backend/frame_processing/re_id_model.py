@@ -9,6 +9,7 @@ import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as T
 from numpy.typing import NDArray
+from decorators.log_call import log_call
 
 
 FloatArray = NDArray[np.float32]
@@ -58,6 +59,7 @@ class ReIDModel(nn.Module):
             ]
         )
 
+    @log_call
     @torch.inference_mode()
     def get_embedding(self, image_bgr: NDArray[Any]) -> FloatArray:
         """

@@ -13,6 +13,7 @@ from frame_processing.global_id_manager import GlobalIDManager
 from frame_processing.single_camera_tracker import YOLOVideoTracker
 from calibration.camera_calibration import CalibrationParameters
 from interfaces.protocols import GlobalIDManagerProtocol
+from decorators.log_call import log_call
 
 
 class MultiCameraProcessor:
@@ -43,6 +44,7 @@ class MultiCameraProcessor:
         self.calibration_data = calibration_data
         self._init_trackers()
 
+    @log_call
     def _init_trackers(self) -> None:
         """Initialize a YOLO tracker for each camera index."""
         self.trackers = []
@@ -138,6 +140,7 @@ class MultiCameraProcessor:
         for tracker in self.trackers:
             self._release_tracker(tracker)
 
+    @log_call
     async def run(self) -> None:
         """Run the main multi-camera processing loop."""
         self.stopped = False
@@ -160,20 +163,24 @@ class MultiCameraProcessor:
         finally:
             self._release_all_trackers()
 
+    @log_call
     def stop(self) -> None:
         """Stop processing and release all resources."""
         self.stopped = True
         self._release_all_trackers()
         self.trackers = []
 
+    @log_call
     def pause(self) -> None:
         """Pause the processing loop."""
         self.paused = True
 
+    @log_call
     def resume(self) -> None:
         """Resume the processing loop."""
         self.paused = False
 
+    @log_call
     async def reset(self) -> None:
         """
         Reset the processor:

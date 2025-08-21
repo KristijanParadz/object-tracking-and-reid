@@ -34,8 +34,6 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
 
     # Detection state (emitted to frontend)
     is_detected: bool
-    corners_found: int
-    reason: str
 
     def __init__(
         self,
@@ -54,8 +52,6 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
 
         # Detection state
         self.is_detected = False
-        self.corners_found = 0
-        self.reason = "not_run"
 
     # ---------------- Detection ----------------
 
@@ -69,12 +65,8 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
         )
         if found and corners is not None:
             self.is_detected = True
-            self.corners_found = int(corners.shape[0])
-            self.reason = "found"
         else:
             self.is_detected = False
-            self.corners_found = 0
-            self.reason = "not_found"
 
     # ---------------- Streaming ----------------
 
@@ -117,10 +109,8 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
             if self.frame_counter % 5 == 0:
                 try:
                     self._run_detection(frame)
-                except Exception as exc:  # be robust to OpenCV edge cases
+                except Exception as exc:
                     self.is_detected = False
-                    self.corners_found = 0
-                    self.reason = f"error:{type(exc).__name__}"
 
             # Emit current frame to frontend
             encode_frame_to_base64 = make_frame_encoder()
@@ -134,8 +124,6 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
                         "frame_number": self.frame_counter,
                         "frames_saved": self.frames_saved,
                         "is_detected": self.is_detected,
-                        "corners_found": self.corners_found,
-                        "reason": self.reason,
                     },
                 )
 
@@ -238,7 +226,7 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
         objpoints: List[np.ndarray] = []  # 3D points in world coords
         imgpoints: List[np.ndarray] = []  # 2D points in image coords
 
-        import glob  # local import to reduce module scope
+        import glob
         images = sorted(glob.glob(os.path.join(self.output_dir, "*.jpg")))
         if not images:
             raise FileNotFoundError(
@@ -255,7 +243,7 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
             if image_shape is None:
                 image_shape = gray.shape[::-1]  # (width, height)
 
-            # Find the chessboard corners (classic detector here; robust & fast)
+            # Find the chessboard corners
             found, corners = cv2.findChessboardCorners(
                 gray, pattern_size, None)
             if found:
@@ -273,7 +261,7 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
                 "No valid chessboard corners found in any image.")
 
         # Calibrate camera
-        ok, K, dist, rvecs, tvecs = cv2.calibrateCamera(
+        ok, K, dist, _, _ = cv2.calibrateCamera(
             objpoints, imgpoints, image_shape, None, None
         )
         if not ok:
@@ -284,9 +272,5 @@ class IntrinsicCameraStreamer(IntrinsicCalibratorBase):
 
         return {
             "K": K.tolist(),
-            "dist_coef": dist_flat,  # <-- PEP-8 name; your loader accepts this
-            # Optional extras you may find useful later:
-            # "image_size": list(image_shape),
-            # "rvecs": [r.ravel().tolist() for r in rvecs],
-            # "tvecs": [t.ravel().tolist() for t in tvecs],
+            "dist_coef": dist_flat,
         }

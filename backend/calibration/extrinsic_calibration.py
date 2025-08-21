@@ -56,25 +56,12 @@ class ExtrinsicCameraStreamer(ExtrinsicCalibratorBase):
 
         # Live detection parameters
         self.is_detected = False
-        self._detection_stride = 5   # run detection every 5th frame
-        self._live_max_side = 640    # downscale for speed
 
     # ---------------- Helpers ----------------
 
-    @staticmethod
-    def _downscale_keep_aspect(img: np.ndarray, max_side: int) -> np.ndarray:
-        """Downscale image keeping aspect ratio so max(H, W) == max_side."""
-        h, w = img.shape[:2]
-        m = max(h, w)
-        if m <= max_side:
-            return img
-        scale = max_side / float(m)
-        new_w, new_h = int(w * scale), int(h * scale)
-        return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-
     def _found_chessboard(self, frame_bgr: np.ndarray) -> bool:
         """Fast check on a single downsized frame for operator feedback."""
-        small = self._downscale_keep_aspect(frame_bgr, self._live_max_side)
+        small = cv2.resize(frame_bgr, Config.RESIZE_SHAPE)
         gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
         flags = cv2.CALIB_CB_EXHAUSTIVE | cv2.CALIB_CB_ACCURACY
         found, _ = cv2.findChessboardCornersSB(
@@ -107,7 +94,9 @@ class ExtrinsicCameraStreamer(ExtrinsicCalibratorBase):
         self.running = True
 
         while self.running:
+            # key is generated camera name, value is base64 image in current iteration
             images_base64: Dict[str, str] = {}
+            # key is camera index, value is image matrix in current iteration
             current_frames: Dict[int, np.ndarray] = {}
 
             # Grab frames from all cameras
@@ -134,7 +123,7 @@ class ExtrinsicCameraStreamer(ExtrinsicCalibratorBase):
                 images_base64[f"camera{idx}"] = encoded
 
             # Periodic detection across all cameras
-            if self.frame_counter % self._detection_stride == 0:
+            if self.frame_counter % Config.SKIP_INTERVAL == 0:
                 try:
                     self.is_detected = all(
                         self._found_chessboard(frm) for frm in current_frames.values()

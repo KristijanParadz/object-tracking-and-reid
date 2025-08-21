@@ -32,7 +32,7 @@ class Config:
     # For calibration/testing; pattern is number of inner corners.
     CHESSBOARD_PATTERN_SIZE: Tuple[int, int] = (
         7, 7)  # e.g., 9x6 in some setups
-    CHESSBOARD_SQUARE_SIZE: float = 1.0                 # in chosen length units
+    CHESSBOARD_SQUARE_SIZE: float = 3.7            # in chosen length units
 
     # ---------- Frontend / Runtime toggles (dynamic at runtime) ----------
     RESIZE_SHAPE_FOR_FRONTEND: Tuple[int, int] = (640, 360)

@@ -22,7 +22,7 @@ class CalibrationParameters:
 
     Attributes:
         K: Intrinsic matrix (3x3).
-        dist_coef: Distortion coefficients (shape depends on model).
+        dist_coef: Distortion coefficients (1x5).
         R: Rotation matrix (3x3).
         t: Translation vector (3x1).
     """
@@ -31,8 +31,8 @@ class CalibrationParameters:
     R: FloatArray
     t: FloatArray
 
-    def __post_init__(self) -> None:  # type: ignore[override]
-        # Shape validations (minimal but practical)
+    def __post_init__(self) -> None:
+        # Shape validations
         if self.K.shape != (3, 3):
             raise ValueError(f"Expected K shape (3, 3), got {self.K.shape}")
         if self.R.shape != (3, 3):

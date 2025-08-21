@@ -53,19 +53,16 @@ def available_cameras() -> List[int]:
 
 @api_app.get("/intrinsic-images-preview")
 def get_intrinsic_images() -> List[str]:
-    # type: ignore[attr-defined]
     return sio.intrinsic_camera_streamer.get_saved_images_base64()
 
 
 @api_app.get("/intrinsic-camera-calibration")
 def calibrate_intrinsic() -> Dict[str, Any]:
-    # type: ignore[attr-defined]
     return sio.intrinsic_camera_streamer.calibrate_intrinsic_from_folder()
 
 
 @api_app.get("/extrinsic-images-preview")
 def get_extrinsic_images() -> Dict[str, List[str]]:
-    # type: ignore[attr-defined]
     return sio.extrinsic_camera_streamer.get_saved_images_base64()
 
 
@@ -96,7 +93,7 @@ async def calibrate_extrinsic(body: Dict[str, Any] = Body(...)) -> Dict[int, Opt
         }
 
     result = sio.extrinsic_camera_streamer.calibrate_all_extrinsics(
-        intrinsics_dict)  # type: ignore[attr-defined]
+        intrinsics_dict)
     return result
 
 
@@ -201,10 +198,9 @@ async def reset(sid: str) -> None:
 
 @sio.on("start-intrinsic-calibration")
 def start_intrinsic_calibration(sid: str, data: Dict[str, Any]) -> None:
-    sio.intrinsic_camera_streamer = IntrinsicCameraStreamer(  # type: ignore[assignment]
+    sio.intrinsic_camera_streamer = IntrinsicCameraStreamer(
         sio, int(data.get("camera_index"))
     )
-    # type: ignore[union-attr]
     asyncio.create_task(sio.intrinsic_camera_streamer.start())
 
 
@@ -217,10 +213,9 @@ def handle_intrinsic_save_frame(sid: str, data: Dict[str, Any]) -> None:
 @sio.on("start-extrinsic-calibration")
 def start_extrinsic_calibration(sid: str, data: Dict[str, Any]) -> None:
     print(data.get("camera_indexes"))
-    sio.extrinsic_camera_streamer = ExtrinsicCameraStreamer(  # type: ignore[assignment]
+    sio.extrinsic_camera_streamer = ExtrinsicCameraStreamer(
         sio, list(map(int, data.get("camera_indexes", [])))
     )
-    # type: ignore[union-attr]
     asyncio.create_task(sio.extrinsic_camera_streamer.start())
 
 
